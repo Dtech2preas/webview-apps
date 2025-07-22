@@ -18,7 +18,7 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
 
     private WebView mWebView;
-    private final String mainUrl = "https://free.dtech24.co.za/next.html";
+    private final String mainUrl = "https://www.preasx24.co.za/log.html";
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
