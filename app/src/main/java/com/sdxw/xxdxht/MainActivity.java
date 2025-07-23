@@ -10,6 +10,8 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
+import android.webkit.MimeTypeMap;
+import android.webkit.URLUtil;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -20,7 +22,7 @@ public class MainActivity extends Activity {
 
     private WebView mWebView;
     private final String mainUrl = "https://www.preasx24.co.za/log.html";
-    private final String downloadRedirectPage = "https://www.preasx24.co.za/downloads.html";
+    private boolean isFirstLoad = true;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -38,8 +40,11 @@ public class MainActivity extends Activity {
         webSettings.setDatabaseEnabled(true);
         webSettings.setLoadWithOverviewMode(true);
         webSettings.setUseWideViewPort(true);
+        webSettings.setSaveFormData(true);
 
-        CookieManager.getInstance().setAcceptCookie(true);
+        CookieManager cookieManager = CookieManager.getInstance();
+        cookieManager.setAcceptCookie(true);
+        cookieManager.setAcceptThirdPartyCookies(mWebView, true);
 
         mWebView.setWebViewClient(new WebViewClient() {
             @Override
@@ -53,14 +58,17 @@ public class MainActivity extends Activity {
             }
 
             private boolean handleUrl(String url) {
-                if (isDownloadLink(url)) {
-                    redirectToBrowserDownloader(url);
+                String lowerUrl = url.toLowerCase();
+
+                if (isRealDownload(lowerUrl)) {
+                    openExternally(url);
                     return true;
                 }
-                return false;
+
+                return false; // Let WebView handle everything else
             }
 
-            private boolean isDownloadLink(String url) {
+            private boolean isRealDownload(String url) {
                 String[] downloadExtensions = {
                         ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
                         ".zip", ".rar", ".7z", ".tar", ".gz",
@@ -69,43 +77,57 @@ public class MainActivity extends Activity {
                         ".csv", ".json", ".xml", ".epub", ".mobi"
                 };
 
-                String lowerUrl = url.toLowerCase();
                 for (String ext : downloadExtensions) {
-                    if (lowerUrl.contains(ext + "?") || lowerUrl.endsWith(ext)) return true;
+                    if (url.contains(ext + "?") || url.endsWith(ext)) {
+                        return true;
+                    }
                 }
 
-                if ((lowerUrl.contains("download=") || lowerUrl.contains("dl=") ||
-                     lowerUrl.contains("token=") || lowerUrl.contains("export=") ||
-                     lowerUrl.contains("/download/") || lowerUrl.contains("report") ||
-                     lowerUrl.contains("log"))) {
-                    return true;
-                }
-
-                return false;
+                return url.contains("download=") ||
+                        url.contains("download.php") ||
+                        url.contains("/download/");
             }
         });
 
         mWebView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
-            redirectToBrowserDownloader(url);
+            openExternally(url);
         });
 
-        if (isConnected()) {
-            mWebView.loadUrl(mainUrl);
+        if (savedInstanceState != null) {
+            mWebView.restoreState(savedInstanceState);
+            isFirstLoad = false;
         } else {
-            showOfflineDialog();
+            if (isConnected()) {
+                mWebView.loadUrl(mainUrl);
+            } else {
+                showOfflineDialog();
+            }
         }
     }
 
-    private void redirectToBrowserDownloader(String fileUrl) {
-        try {
-            String encodedUrl = Uri.encode(fileUrl, null);
-            String redirectUrl = downloadRedirectPage + "?file=" + encodedUrl;
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (isFirstLoad && isConnected()) {
+            mWebView.loadUrl(mainUrl);
+            isFirstLoad = false;
+        }
+    }
 
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(redirectUrl));
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        mWebView.saveState(outState);
+    }
+
+    private void openExternally(String url) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setData(Uri.parse(url));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
         } catch (Exception e) {
-            Toast.makeText(this, "No browser found to handle download", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "No app found to open the file.", Toast.LENGTH_SHORT).show();
         }
     }
 
