@@ -66,7 +66,7 @@ public class MainActivity extends Activity {
                         ".zip", ".rar", ".7z", ".tar", ".gz",
                         ".mp3", ".wav", ".ogg", ".mp4", ".avi", ".mkv", ".mov", ".flv",
                         ".apk", ".exe", ".dmg", ".pkg", ".deb", ".rpm",
-                        ".csv", ".json", ".xml", ".epub", ".mobi", ".html", ".htm"
+                        ".csv", ".json", ".xml", ".epub", ".mobi"
                 };
 
                 String lowerUrl = url.toLowerCase();
