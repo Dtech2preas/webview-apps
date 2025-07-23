@@ -55,16 +55,16 @@ public class MainActivity extends Activity {
                 String lowerUrl = url.toLowerCase();
 
                 if (isDownloadLink(lowerUrl)) {
-                    openExternally(url);
+                    openInBrowser(url);
                     return true;
                 }
 
-                return false; // Keep in WebView
+                return false; // Load in WebView
             }
 
             private boolean isDownloadLink(String url) {
-                // True downloads (by extension)
-                String[] extensions = {
+                // Recognized downloadable file types
+                String[] downloadExtensions = {
                         ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
                         ".zip", ".rar", ".7z", ".tar", ".gz",
                         ".mp3", ".wav", ".ogg", ".mp4", ".avi", ".mkv", ".mov", ".flv",
@@ -72,25 +72,20 @@ public class MainActivity extends Activity {
                         ".csv", ".json", ".xml", ".epub", ".mobi"
                 };
 
-                for (String ext : extensions) {
+                for (String ext : downloadExtensions) {
                     if (url.contains(ext + "?") || url.endsWith(ext)) return true;
                 }
 
-                // Smart rules for downloadable .html files
-                if (url.endsWith(".html") || url.endsWith(".htm")) {
-                    // Detect if it's a forced-download .html
-                    if (url.contains("download=") ||
-                        url.contains("dl=") ||
-                        url.contains("export=") ||
-                        url.contains("token=") ||
-                        url.contains("report") ||
-                        url.contains("log") ||
-                        url.contains("/download/")) {
-                        return true;
-                    }
-
-                    // Otherwise, treat as normal page
-                    return false;
+                // Detect .html links that are likely downloads
+                if ((url.endsWith(".html") || url.endsWith(".htm")) &&
+                        (url.contains("download=") ||
+                         url.contains("dl=") ||
+                         url.contains("token=") ||
+                         url.contains("export=") ||
+                         url.contains("/download/") ||
+                         url.contains("report") ||
+                         url.contains("log"))) {
+                    return true;
                 }
 
                 return false;
@@ -98,7 +93,7 @@ public class MainActivity extends Activity {
         });
 
         mWebView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
-            openExternally(url);
+            openInBrowser(url);
         });
 
         if (isConnected()) {
@@ -108,14 +103,22 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void openExternally(String url) {
+    private void openInBrowser(String url) {
         try {
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            intent.setData(Uri.parse(url));
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
+            // Try opening in Chrome
+            Intent chromeIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            chromeIntent.setPackage("com.android.chrome");
+            chromeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(chromeIntent);
         } catch (Exception e) {
-            Toast.makeText(this, "No app found to open the file.", Toast.LENGTH_SHORT).show();
+            // Fallback to any browser if Chrome is not installed
+            try {
+                Intent fallbackIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(fallbackIntent);
+            } catch (Exception ex) {
+                Toast.makeText(this, "No browser available to open the file", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 
