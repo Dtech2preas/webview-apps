@@ -8,6 +8,7 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Bundle;
+import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -27,66 +28,77 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         mWebView = findViewById(R.id.activity_main_webview);
+
         WebSettings webSettings = mWebView.getSettings();
         webSettings.setJavaScriptEnabled(true);
+        webSettings.setDomStorageEnabled(true);
         webSettings.setAllowFileAccess(true);
         webSettings.setAllowContentAccess(true);
-        webSettings.setDomStorageEnabled(true);
         webSettings.setDatabaseEnabled(true);
+        webSettings.setLoadWithOverviewMode(true);
+        webSettings.setUseWideViewPort(true);
+
+        CookieManager.getInstance().setAcceptCookie(true);
 
         mWebView.setWebViewClient(new WebViewClient() {
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return handleCustomUrlLogic(url);
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return handleUrl(request.getUrl().toString());
             }
 
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return handleCustomUrlLogic(request.getUrl().toString());
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return handleUrl(url);
             }
 
-            private boolean handleCustomUrlLogic(String url) {
-                if (isDownloadableFile(url)) {
-                    openUrlExternally(url);
+            private boolean handleUrl(String url) {
+                String lowerUrl = url.toLowerCase();
+
+                if (isDownloadLink(lowerUrl)) {
+                    openExternally(url);
                     return true;
                 }
-                return false;
+
+                return false; // Keep in WebView
             }
 
-            private boolean isDownloadableFile(String url) {
-                String[] downloadExtensions = {
-                    // Documents
-                    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".rtf",
-                    // Archives
-                    ".zip", ".rar", ".7z", ".tar", ".gz",
-                    // Media
-                    ".mp3", ".wav", ".ogg", ".mp4", ".avi", ".mkv", ".mov", ".flv",
-                    // Images
-                    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg",
-                    // Executables
-                    ".apk", ".exe", ".dmg", ".pkg", ".deb", ".rpm",
-                    // Others
-                    ".csv", ".json", ".xml", ".html", ".htm", ".epub", ".mobi"
+            private boolean isDownloadLink(String url) {
+                // True downloads (by extension)
+                String[] extensions = {
+                        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+                        ".zip", ".rar", ".7z", ".tar", ".gz",
+                        ".mp3", ".wav", ".ogg", ".mp4", ".avi", ".mkv", ".mov", ".flv",
+                        ".apk", ".exe", ".dmg", ".pkg", ".deb", ".rpm",
+                        ".csv", ".json", ".xml", ".epub", ".mobi"
                 };
 
-                String lowerUrl = url.toLowerCase();
-                for (String ext : downloadExtensions) {
-                    if (lowerUrl.contains(ext + "?") || lowerUrl.endsWith(ext)) {
-                        return true;
-                    }
+                for (String ext : extensions) {
+                    if (url.contains(ext + "?") || url.endsWith(ext)) return true;
                 }
 
-                return lowerUrl.contains("download=") ||
-                       lowerUrl.contains("download.php") ||
-                       lowerUrl.contains("/download/");
+                // Smart rules for downloadable .html files
+                if (url.endsWith(".html") || url.endsWith(".htm")) {
+                    // Detect if it's a forced-download .html
+                    if (url.contains("download=") ||
+                        url.contains("dl=") ||
+                        url.contains("export=") ||
+                        url.contains("token=") ||
+                        url.contains("report") ||
+                        url.contains("log") ||
+                        url.contains("/download/")) {
+                        return true;
+                    }
+
+                    // Otherwise, treat as normal page
+                    return false;
+                }
+
+                return false;
             }
         });
 
-        mWebView.setDownloadListener(new DownloadListener() {
-            @Override
-            public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimeType, long contentLength) {
-                openUrlExternally(url);
-            }
+        mWebView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
+            openExternally(url);
         });
 
         if (isConnected()) {
@@ -96,41 +108,40 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void openUrlExternally(String url) {
+    private void openExternally(String url) {
         try {
             Intent intent = new Intent(Intent.ACTION_VIEW);
             intent.setData(Uri.parse(url));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
         } catch (Exception e) {
-            Toast.makeText(this, "No application can handle this download", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "No app found to open the file.", Toast.LENGTH_SHORT).show();
         }
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (mWebView.canGoBack()) {
-            mWebView.goBack();
-        } else {
-            if (!mWebView.getUrl().equals(mainUrl)) {
-                mWebView.loadUrl(mainUrl);
-            } else {
-                super.onBackPressed();
-            }
-        }
-    }
-
-    private void showOfflineDialog() {
-        new AlertDialog.Builder(this)
-            .setTitle("No Internet Connection")
-            .setMessage("Please check your internet connection and restart the app.")
-            .setCancelable(false)
-            .setPositiveButton("Exit", (dialog, which) -> finish())
-            .show();
     }
 
     private boolean isConnected() {
         ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         NetworkInfo netInfo = cm.getActiveNetworkInfo();
         return netInfo != null && netInfo.isConnected();
+    }
+
+    private void showOfflineDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("No Internet Connection")
+                .setMessage("Please check your internet connection and restart the app.")
+                .setCancelable(false)
+                .setPositiveButton("Exit", (dialog, which) -> finish())
+                .show();
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (mWebView.canGoBack()) {
+            mWebView.goBack();
+        } else if (!mWebView.getUrl().equals(mainUrl)) {
+            mWebView.loadUrl(mainUrl);
+        } else {
+            super.onBackPressed();
+        }
     }
 }
