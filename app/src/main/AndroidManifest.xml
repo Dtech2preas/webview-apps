@@ -2,33 +2,26 @@
 <manifest
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.sdxw.xxdxht">
+    package="com.yrum.ppmyvr">
 
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/AppTheme"
-        android:usesCleartextTraffic="true"
         tools:ignore="GoogleAppIndexingWarning">
 
-        <!-- Network Security Config -->
-        <meta-data
-            android:name="android.webkit.WebView.EnableSafeBrowsing"
-            android:value="false" />
-
-        <!-- Main Activity -->
+        <!-- Main Activity (Home screen) -->
         <activity
-            android:name="com.sdxw.xxdxht.MainActivity"
+            android:name="com.yrum.ppmyvr.MainActivity"
             android:exported="true"
             android:configChanges="orientation|screenSize">
             <intent-filter>
@@ -37,16 +30,8 @@
             </intent-filter>
         </activity>
 
-        <!-- Music Player Activity -->
-        <activity
-            android:name="com.sdxw.xxdxht.MusicPlayerActivity"
-            android:theme="@android:style/Theme.DeviceDefault.Light.DarkActionBar" />
-
-        <!-- Music Service -->
-        <service android:name="com.sdxw.xxdxht.MusicService" />
-
-        <!-- Popup Activity -->
-        <activity android:name="com.sdxw.xxdxht.PopupWebViewActivity" />
+        <!-- ✅ NEW: Ad Popup Activity -->
+        <activity android:name="com.yrum.ppmyvr.PopupWebViewActivity" />
 
     </application>
 </manifest>
