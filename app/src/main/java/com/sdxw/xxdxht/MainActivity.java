@@ -30,7 +30,7 @@ import java.util.HashMap;
 public class MainActivity extends Activity {
 
     private WebView mWebView;
-    private final String mainUrl = "https://www.preasx24.co.za/log.html";
+    private final String mainUrl = "https://dtech.preasx24.co.za";
     private boolean isFirstLoad = true;
     private File musicDirectory;
     private HashMap<String, String> downloadQueue = new HashMap<>();
@@ -271,78 +271,95 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void handleAudioDownload(String url, String fileName) {
-        new Thread(() -> {
-            try {
-                runOnUiThread(() -> 
-                    Toast.makeText(MainActivity.this, "Starting download: " + fileName, Toast.LENGTH_SHORT).show());
-
-                HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
-                connection.setRequestMethod("GET");
-                connection.setRequestProperty("User-Agent", "Mozilla/5.0...");
-                
-                // Add cookies if available
-                String cookies = CookieManager.getInstance().getCookie(url);
-                if (cookies != null) {
-                    connection.setRequestProperty("Cookie", cookies);
-                }
-
-                connection.connect();
-
-                if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
-                    // Clean filename
-                    fileName = fileName.replaceAll("[^a-zA-Z0-9.-]", "_");
-                    if (!fileName.toLowerCase().endsWith(".mp3")) {
-                        fileName += ".mp3";
+    private void handleAudioDownload(final String url, final String originalFileName) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    // Process the filename outside the lambda/runnable
+                    String processedFileName = originalFileName.replaceAll("[^a-zA-Z0-9.-]", "_");
+                    if (!processedFileName.toLowerCase().endsWith(".mp3")) {
+                        processedFileName += ".mp3";
                     }
-
-                    File outputFile = new File(musicDirectory, fileName);
-
-                    InputStream input = connection.getInputStream();
-                    FileOutputStream output = new FileOutputStream(outputFile);
-
-                    byte[] buffer = new byte[4096];
-                    int bytesRead;
-                    long totalBytesRead = 0;
-                    int contentLength = connection.getContentLength();
-
-                    while ((bytesRead = input.read(buffer)) != -1) {
-                        output.write(buffer, 0, bytesRead);
-                        totalBytesRead += bytesRead;
-                        
-                        // Update progress if needed
-                        final long currentTotal = totalBytesRead;
-                        final long total = contentLength;
-                        runOnUiThread(() -> {
-                            if (contentLength > 0) {
-                                int progress = (int) ((currentTotal * 100) / total);
-                                // You could update a progress bar here
-                            }
-                        });
-                    }
-
-                    output.flush();
-                    output.close();
-                    input.close();
-
-                    runOnUiThread(() -> {
-                        Toast.makeText(MainActivity.this, 
-                            "Download complete: " + fileName, Toast.LENGTH_LONG).show();
-                        
-                        // Refresh the WebView to update download status
-                        mWebView.reload();
+                    
+                    final String finalFileName = processedFileName;
+                    
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(MainActivity.this, "Starting download: " + finalFileName, Toast.LENGTH_SHORT).show();
+                        }
                     });
 
-                } else {
-                    throw new Exception("HTTP error: " + connection.getResponseCode());
-                }
+                    HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+                    connection.setRequestMethod("GET");
+                    connection.setRequestProperty("User-Agent", "Mozilla/5.0...");
+                    
+                    // Add cookies if available
+                    String cookies = CookieManager.getInstance().getCookie(url);
+                    if (cookies != null) {
+                        connection.setRequestProperty("Cookie", cookies);
+                    }
 
-            } catch (Exception e) {
-                runOnUiThread(() -> {
-                    Toast.makeText(MainActivity.this, 
-                        "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    e.printStackTrace();
-                });
+                    connection.connect();
+
+                    if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
+                        File outputFile = new File(musicDirectory, finalFileName);
+
+                        InputStream input = connection.getInputStream();
+                        FileOutputStream output = new FileOutputStream(outputFile);
+
+                        byte[] buffer = new byte[4096];
+                        int bytesRead;
+                        long totalBytesRead = 0;
+                        final int contentLength = connection.getContentLength();
+
+                        while ((bytesRead = input.read(buffer)) != -1) {
+                            output.write(buffer, 0, bytesRead);
+                            totalBytesRead += bytesRead;
+                            
+                            // Update progress if needed
+                            final long currentTotal = totalBytesRead;
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (contentLength > 0) {
+                                        int progress = (int) ((currentTotal * 100) / contentLength);
+                                        // You could update a progress bar here
+                                    }
+                                }
+                            });
+                        }
+
+                        output.flush();
+                        output.close();
+                        input.close();
+
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(MainActivity.this, 
+                                    "Download complete: " + finalFileName, Toast.LENGTH_LONG).show();
+                                
+                                // Refresh the WebView to update download status
+                                mWebView.reload();
+                            }
+                        });
+
+                    } else {
+                        throw new Exception("HTTP error: " + connection.getResponseCode());
+                    }
+
+                } catch (final Exception e) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(MainActivity.this, 
+                                "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                            e.printStackTrace();
+                        }
+                    });
+                }
             }
         }).start();
     }
