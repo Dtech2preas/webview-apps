@@ -18,7 +18,13 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="true"
         tools:ignore="GoogleAppIndexingWarning">
+
+        <!-- Network Security Config -->
+        <meta-data
+            android:name="android.webkit.WebView.EnableSafeBrowsing"
+            android:value="false" />
 
         <!-- Main Activity -->
         <activity
@@ -36,7 +42,7 @@
             android:name="com.sdxw.xxdxht.MusicPlayerActivity"
             android:theme="@android:style/Theme.DeviceDefault.Light.DarkActionBar" />
 
-        <!-- Music Service for Background Playback -->
+        <!-- Music Service -->
         <service android:name="com.sdxw.xxdxht.MusicService" />
 
         <!-- Popup Activity -->
