@@ -146,125 +146,123 @@ public class MainActivity extends Activity {
         }
     }
 
-    // Inject JavaScript to handle download clicks
+    // Inject JavaScript to handle download clicks - Java 8 compatible version
     private void injectDownloadHandler() {
-        String jsCode = """
-            javascript:(function() {
-                // Override download buttons
-                const originalFetch = window.fetch;
-                window.fetch = function(...args) {
-                    const url = args[0];
-                    if (typeof url === 'string' && url.includes('/api/download')) {
-                        // Intercept download API calls
-                        return originalFetch.apply(this, args).then(response => {
-                            if (response.ok) {
-                                response.clone().json().then(data => {
-                                    if (data.download_id) {
-                                        // Monitor download status
-                                        monitorDownload(data.download_id, data);
-                                    }
-                                });
-                            }
-                            return response;
-                        });
-                    }
-                    return originalFetch.apply(this, args);
-                };
+        // Using regular string concatenation instead of text blocks
+        String jsCode = "javascript:(function() {" +
+            "// Override download buttons" +
+            "const originalFetch = window.fetch;" +
+            "window.fetch = function(...args) {" +
+            "    const url = args[0];" +
+            "    if (typeof url === 'string' && url.includes('/api/download')) {" +
+            "        // Intercept download API calls" +
+            "        return originalFetch.apply(this, args).then(response => {" +
+            "            if (response.ok) {" +
+            "                response.clone().json().then(data => {" +
+            "                    if (data.download_id) {" +
+            "                        // Monitor download status" +
+            "                        monitorDownload(data.download_id, data);" +
+            "                    }" +
+            "                });" +
+            "            }" +
+            "            return response;" +
+            "        });" +
+            "    }" +
+            "    return originalFetch.apply(this, args);" +
+            "};" +
 
-                // Override download button clicks
-                document.addEventListener('click', function(e) {
-                    const btn = e.target.closest('.download-btn');
-                    if (btn) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        
-                        const songCard = btn.closest('.song-card');
-                        const songName = songCard.querySelector('h3').textContent;
-                        const artist = songCard.querySelector('.artist').textContent;
-                        
-                        // Get download URL from data attributes or href
-                        let downloadUrl = btn.getAttribute('data-url') || 
-                                         btn.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
-                        
-                        if (downloadUrl && Android) {
-                            Android.downloadSong(downloadUrl, songName, artist);
-                            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
-                            btn.disabled = true;
-                        }
-                    }
-                });
+            "// Override download button clicks" +
+            "document.addEventListener('click', function(e) {" +
+            "    const btn = e.target.closest('.download-btn');" +
+            "    if (btn) {" +
+            "        e.preventDefault();" +
+            "        e.stopPropagation();" +
+            "        " +
+            "        const songCard = btn.closest('.song-card');" +
+            "        const songName = songCard.querySelector('h3').textContent;" +
+            "        const artist = songCard.querySelector('.artist').textContent;" +
+            "        " +
+            "        // Get download URL from data attributes or href" +
+            "        let downloadUrl = btn.getAttribute('data-url') || " +
+            "                         btn.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];" +
+            "        " +
+            "        if (downloadUrl && Android) {" +
+            "            Android.downloadSong(downloadUrl, songName, artist);" +
+            "            btn.innerHTML = '<i class=\\\"fas fa-spinner fa-spin\\\"></i> Downloading...';" +
+            "            btn.disabled = true;" +
+            "        }" +
+            "    }" +
+            "});" +
 
-                // Add play functionality to song cards
-                document.addEventListener('click', function(e) {
-                    const playBtn = e.target.closest('.play-button');
-                    if (playBtn) {
-                        const songCard = playBtn.closest('.song-card');
-                        const songName = songCard.querySelector('h3').textContent;
-                        const artist = songCard.querySelector('.artist').textContent;
-                        
-                        // Check if song is downloaded
-                        const fileName = songName + ' - ' + artist + '.mp3';
-                        if (Android) {
-                            const songs = JSON.parse(Android.getDownloadedSongs());
-                            const song = songs.find(s => s.name === fileName);
-                            if (song) {
-                                Android.playSong(song.path);
-                            } else {
-                                Android.showToast('Song not downloaded yet');
-                            }
-                        }
-                    }
-                });
+            "// Add play functionality to song cards" +
+            "document.addEventListener('click', function(e) {" +
+            "    const playBtn = e.target.closest('.play-button');" +
+            "    if (playBtn) {" +
+            "        const songCard = playBtn.closest('.song-card');" +
+            "        const songName = songCard.querySelector('h3').textContent;" +
+            "        const artist = songCard.querySelector('.artist').textContent;" +
+            "        " +
+            "        // Check if song is downloaded" +
+            "        const fileName = songName + ' - ' + artist + '.mp3';" +
+            "        if (Android) {" +
+            "            const songs = JSON.parse(Android.getDownloadedSongs());" +
+            "            const song = songs.find(s => s.name === fileName);" +
+            "            if (song) {" +
+            "                Android.playSong(song.path);" +
+            "            } else {" +
+            "                Android.showToast('Song not downloaded yet');" +
+            "            }" +
+            "        }" +
+            "    }" +
+            "});" +
 
-                function monitorDownload(downloadId, data) {
-                    const checkStatus = async () => {
-                        try {
-                            const response = await fetch('/api/download/' + downloadId + '/status');
-                            const status = await response.json();
-                            
-                            if (status.status === 'completed') {
-                                // Download completed - file is ready
-                                const fileResponse = await fetch('/api/download/' + downloadId + '/file');
-                                const blob = await fileResponse.blob();
-                                
-                                // Convert blob to object URL and trigger download
-                                const url = URL.createObjectURL(blob);
-                                if (Android) {
-                                    Android.downloadSong(url, data.song_name || 'song', data.artist || 'artist');
-                                }
-                            } else if (status.status === 'processing' || status.status === 'downloading') {
-                                // Still processing, check again in 2 seconds
-                                setTimeout(checkStatus, 2000);
-                            }
-                        } catch (error) {
-                            console.error('Status check error:', error);
-                        }
-                    };
-                    checkStatus();
-                }
+            "function monitorDownload(downloadId, data) {" +
+            "    const checkStatus = async () => {" +
+            "        try {" +
+            "            const response = await fetch('/api/download/' + downloadId + '/status');" +
+            "            const status = await response.json();" +
+            "            " +
+            "            if (status.status === 'completed') {" +
+            "                // Download completed - file is ready" +
+            "                const fileResponse = await fetch('/api/download/' + downloadId + '/file');" +
+            "                const blob = await fileResponse.blob();" +
+            "                " +
+            "                // Convert blob to object URL and trigger download" +
+            "                const url = URL.createObjectURL(blob);" +
+            "                if (Android) {" +
+            "                    Android.downloadSong(url, data.song_name || 'song', data.artist || 'artist');" +
+            "                }" +
+            "            } else if (status.status === 'processing' || status.status === 'downloading') {" +
+            "                // Still processing, check again in 2 seconds" +
+            "                setTimeout(checkStatus, 2000);" +
+            "            }" +
+            "        } catch (error) {" +
+            "            console.error('Status check error:', error);" +
+            "        }" +
+            "    };" +
+            "    checkStatus();" +
+            "}" +
 
-                // Update download buttons with local file status
-                setTimeout(() => {
-                    if (Android) {
-                        const downloadedSongs = JSON.parse(Android.getDownloadedSongs());
-                        document.querySelectorAll('.song-card').forEach(card => {
-                            const songName = card.querySelector('h3').textContent;
-                            const artist = card.querySelector('.artist').textContent;
-                            const fileName = songName + ' - ' + artist + '.mp3';
-                            const btn = card.querySelector('.download-btn');
-                            
-                            if (downloadedSongs.some(song => song.name === fileName)) {
-                                btn.innerHTML = '<i class="fas fa-check"></i> Downloaded';
-                                btn.style.background = '#1DB954';
-                                btn.style.color = 'black';
-                                btn.disabled = true;
-                            }
-                        });
-                    }
-                }, 1000);
-
-            })();
-        """;
+            "// Update download buttons with local file status" +
+            "setTimeout(() => {" +
+            "    if (Android) {" +
+            "        const downloadedSongs = JSON.parse(Android.getDownloadedSongs());" +
+            "        document.querySelectorAll('.song-card').forEach(card => {" +
+            "            const songName = card.querySelector('h3').textContent;" +
+            "            const artist = card.querySelector('.artist').textContent;" +
+            "            const fileName = songName + ' - ' + artist + '.mp3';" +
+            "            const btn = card.querySelector('.download-btn');" +
+            "            " +
+            "            if (downloadedSongs.some(song => song.name === fileName)) {" +
+            "                btn.innerHTML = '<i class=\\\"fas fa-check\\\"></i> Downloaded';" +
+            "                btn.style.background = '#1DB954';" +
+            "                btn.style.color = 'black';" +
+            "                btn.disabled = true;" +
+            "            }" +
+            "        });" +
+            "    }" +
+            "}, 1000);" +
+            "})();";
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
             mWebView.evaluateJavascript(jsCode, null);
