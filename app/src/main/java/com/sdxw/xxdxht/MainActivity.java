@@ -1,157 +1,153 @@
-package com.sdxw.xxdxht;
+package com.yrum.ppmyvr;
 
-import android.Manifest;
-import android.app.DownloadManager;
-import android.content.Context;
+import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
-import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
-import android.util.Log;
-import android.webkit.CookieManager;
-import android.webkit.DownloadListener;
-import android.webkit.JavascriptInterface;
-import android.webkit.URLUtil;
-import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
+public class MainActivity extends Activity {
 
-import java.io.File;
-import java.util.ArrayList;
+    private WebView mWebView;
+    private final String mainUrl = "https://about.preasx24.co.za";
 
-public class MainActivity extends AppCompatActivity {
-    private static final int PERMISSION_REQUEST_CODE = 1001;
-    private static final String TAG = "MainActivity";
-
-    private WebView webView;
-    private TextView countdownText;
-    private DownloadManager downloadManager;
-    private ArrayList<File> downloadedSongs = new ArrayList<>();
-
+    @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        webView = findViewById(R.id.activity_main_webview);
-        countdownText = findViewById(R.id.countdown_text);
-        downloadManager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+        mWebView = findViewById(R.id.activity_main_webview);
+        WebSettings webSettings = mWebView.getSettings();
+        webSettings.setJavaScriptEnabled(true);
+        webSettings.setAllowFileAccess(true);
+        webSettings.setAllowContentAccess(true);
+        webSettings.setDomStorageEnabled(true);
+        webSettings.setDatabaseEnabled(true);
 
-        if (webView == null || countdownText == null) {
-            Toast.makeText(this, "Layout IDs missing!", Toast.LENGTH_LONG).show();
-            Log.e(TAG, "WebView or TextView is null!");
-            return;
-        }
-
-        setupWebView();
-        requestStoragePermission();
-    }
-
-    private void setupWebView() {
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setAllowFileAccess(true);
-        settings.setDomStorageEnabled(true);
-        settings.setMediaPlaybackRequiresUserGesture(false);
-
-        webView.addJavascriptInterface(new WebAppInterface(), "AndroidApp");
-        webView.setWebChromeClient(new WebChromeClient());
-        webView.setWebViewClient(new WebViewClient());
-
-        // Load a test URL first
-        webView.loadUrl("https://dtech.preas24.co.za");
-
-        webView.setDownloadListener(new DownloadListener() {
+        mWebView.setWebViewClient(new WebViewClient() {
             @Override
-            public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimeType, long contentLength) {
-                if (!hasStoragePermission()) {
-                    ActivityCompat.requestPermissions(MainActivity.this,
-                            new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
-                            PERMISSION_REQUEST_CODE);
-                    return;
-                }
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return handleCustomUrlLogic(url);
+            }
 
-                String safeName = URLUtil.guessFileName(url, contentDisposition, mimeType);
-                Toast.makeText(MainActivity.this, "Downloading " + safeName, Toast.LENGTH_SHORT).show();
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return handleCustomUrlLogic(request.getUrl().toString());
+            }
 
+            private boolean handleCustomUrlLogic(String url) {
                 try {
-                    DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-                    request.setMimeType(mimeType);
-                    request.addRequestHeader("cookie", CookieManager.getInstance().getCookie(url));
-                    request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                    request.setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, safeName);
-                    downloadManager.enqueue(request);
+                    Uri mainUri = Uri.parse(mainUrl);
+                    Uri currentUri = Uri.parse(url);
+
+                    // Allow all downloads to open externally
+                    if (isDownloadableFile(url)) {
+                        openUrlExternally(url);
+                        return true;
+                    }
+
+                    // Allow navigation within main domain
+                    if (currentUri.getHost() != null && currentUri.getHost().equals(mainUri.getHost())) {
+                        return false;
+                    }
+
+                    // Block external links that aren't downloads
+                    Toast.makeText(MainActivity.this, "Blocked external link", Toast.LENGTH_SHORT).show();
+                    return true;
                 } catch (Exception e) {
-                    Log.e(TAG, "Download failed: " + e.getMessage());
-                    Toast.makeText(MainActivity.this, "Download failed", Toast.LENGTH_SHORT).show();
+                    return true;
                 }
             }
+
+            private boolean isDownloadableFile(String url) {
+                String[] downloadExtensions = {
+                    // Documents
+                    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".rtf",
+                    // Archives
+                    ".zip", ".rar", ".7z", ".tar", ".gz",
+                    // Media
+                    ".mp3", ".wav", ".ogg", ".mp4", ".avi", ".mkv", ".mov", ".flv",
+                    // Images
+                    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg",
+                    // Executables
+                    ".apk", ".exe", ".dmg", ".pkg", ".deb", ".rpm",
+                    // Other common files
+                    ".csv", ".json", ".xml", ".html", ".htm", ".epub", ".mobi"
+                };
+                
+                String lowerCaseUrl = url.toLowerCase();
+                for (String extension : downloadExtensions) {
+                    if (lowerCaseUrl.contains(extension + "?") || lowerCaseUrl.endsWith(extension)) {
+                        return true;
+                    }
+                }
+                
+                // Also check for common download patterns
+                if (url.contains("download=true") || url.contains("download=1") || 
+                    url.contains("download.php") || url.contains("download/file")) {
+                    return true;
+                }
+                
+                return false;
+            }
         });
+
+        // Handle downloads triggered by JavaScript
+        mWebView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
+            openUrlExternally(url);
+        });
+
+        if (isConnected()) {
+            mWebView.loadUrl(mainUrl);
+        } else {
+            showOfflineDialog();
+        }
     }
 
-    private boolean hasStoragePermission() {
-        return ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                == PackageManager.PERMISSION_GRANTED;
-    }
-
-    private void requestStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !hasStoragePermission()) {
-            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, PERMISSION_REQUEST_CODE);
+    private void openUrlExternally(String url) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setData(Uri.parse(url));
+            startActivity(intent);
+        } catch (Exception e) {
+            Toast.makeText(this, "No application can handle this download", Toast.LENGTH_SHORT).show();
         }
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Storage Permission Granted", Toast.LENGTH_SHORT).show();
+    public void onBackPressed() {
+        if (mWebView.canGoBack()) {
+            mWebView.goBack();
+        } else {
+            if (!mWebView.getUrl().equals(mainUrl)) {
+                mWebView.loadUrl(mainUrl);
             } else {
-                Toast.makeText(this, "Storage Permission Denied", Toast.LENGTH_SHORT).show();
+                super.onBackPressed();
             }
         }
     }
 
-    private class WebAppInterface {
-        @JavascriptInterface
-        public void playDownloadedSong(String fileName) {
-            File musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC);
-            File songFile = new File(musicDir, fileName);
+    private void showOfflineDialog() {
+        new AlertDialog.Builder(this)
+            .setTitle("No Internet Connection")
+            .setMessage("Please check your internet connection and restart the app.")
+            .setCancelable(false)
+            .setPositiveButton("Exit", (dialog, which) -> finish())
+            .show();
+    }
 
-            if (songFile.exists()) {
-                ArrayList<File> songs = new ArrayList<>();
-                File[] files = musicDir.listFiles();
-                if (files != null) {
-                    for (File f : files) {
-                        if (f.getName().endsWith(".mp3")) {
-                            songs.add(f);
-                        }
-                    }
-                }
-
-                Intent intent = new Intent(MainActivity.this, MusicPlayerActivity.class);
-                intent.putExtra("songPath", songFile.getAbsolutePath());
-                intent.putExtra("songList", songs);
-                intent.putExtra("position", songs.indexOf(songFile));
-                startActivity(intent);
-            } else {
-                Toast.makeText(MainActivity.this, "Song not found", Toast.LENGTH_SHORT).show();
-            }
-        }
-
-        @JavascriptInterface
-        public void showToast(String message) {
-            Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
-        }
+    private boolean isConnected() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        NetworkInfo netInfo = cm.getActiveNetworkInfo();
+        return netInfo != null && netInfo.isConnected();
     }
 }
