@@ -8,9 +8,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:allowBackup="true"
@@ -19,7 +20,7 @@
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning">
 
-        <!-- Main Activity (Home screen) -->
+        <!-- Main Activity -->
         <activity
             android:name="com.sdxw.xxdxht.MainActivity"
             android:exported="true"
@@ -30,7 +31,15 @@
             </intent-filter>
         </activity>
 
-        <!-- ✅ NEW: Ad Popup Activity -->
+        <!-- Music Player Activity -->
+        <activity
+            android:name="com.sdxw.xxdxht.MusicPlayerActivity"
+            android:theme="@android:style/Theme.DeviceDefault.Light.DarkActionBar" />
+
+        <!-- Music Service for Background Playback -->
+        <service android:name="com.sdxw.xxdxht.MusicService" />
+
+        <!-- Popup Activity -->
         <activity android:name="com.sdxw.xxdxht.PopupWebViewActivity" />
 
     </application>
