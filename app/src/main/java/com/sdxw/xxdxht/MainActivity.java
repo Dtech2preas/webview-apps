@@ -10,29 +10,32 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.webkit.CookieManager;
-import android.webkit.DownloadListener;
+import android.webkit.JavascriptInterface;
 import android.webkit.URLUtil;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLConnection;
 import java.util.ArrayList;
-
+import java.util.HashMap;
 
 public class MainActivity extends Activity {
 
     private WebView mWebView;
-    private final String mainUrl = "https://dtech.preasx24.co.za";
+    private final String mainUrl = "https://www.preasx24.co.za/log.html";
     private boolean isFirstLoad = true;
     private File musicDirectory;
+    private HashMap<String, String> downloadQueue = new HashMap<>();
 
-    @SuppressLint("SetJavaScriptEnabled")
+    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -40,7 +43,7 @@ public class MainActivity extends Activity {
 
         // Create music directory
         musicDirectory = new File(Environment.getExternalStoragePublicDirectory(
-            Environment.DIRECTORY_MUSIC), "MyDownloadedSongs");
+            Environment.DIRECTORY_MUSIC), "SpotifyDownloads");
         if (!musicDirectory.exists()) {
             musicDirectory.mkdirs();
         }
@@ -56,10 +59,20 @@ public class MainActivity extends Activity {
         webSettings.setLoadWithOverviewMode(true);
         webSettings.setUseWideViewPort(true);
         webSettings.setSaveFormData(true);
+        webSettings.setAllowUniversalAccessFromFileURLs(true);
+        webSettings.setAllowFileAccessFromFileURLs(true);
+
+        // Enable mixed content for HTTP/HTTPS
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        }
 
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
         cookieManager.setAcceptThirdPartyCookies(mWebView, true);
+
+        // Add JavaScript interface for communication
+        mWebView.addJavascriptInterface(new WebAppInterface(), "Android");
 
         mWebView.setWebViewClient(new WebViewClient() {
             @Override
@@ -72,57 +85,27 @@ public class MainActivity extends Activity {
                 return handleUrl(url);
             }
 
-            private boolean handleUrl(String url) {
-                String lowerUrl = url.toLowerCase();
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                // Inject JavaScript to override download functionality
+                injectDownloadHandler();
+            }
 
-                if (isAudioDownload(lowerUrl)) {
-                    downloadAndStoreSong(url);
-                    return true;
-                } else if (isRealDownload(lowerUrl)) {
+            private boolean handleUrl(String url) {
+                if (url.startsWith("tel:") || url.startsWith("sms:") || 
+                    url.startsWith("mailto:") || url.startsWith("whatsapp:")) {
                     openExternally(url);
                     return true;
                 }
-
                 return false;
-            }
-
-            private boolean isAudioDownload(String url) {
-                String[] audioExtensions = {".mp3", ".wav", ".ogg", ".m4a", ".aac"};
-                for (String ext : audioExtensions) {
-                    if (url.contains(ext + "?") || url.endsWith(ext)) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            private boolean isRealDownload(String url) {
-                String[] downloadExtensions = {
-                        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-                        ".zip", ".rar", ".7z", ".tar", ".gz",
-                        ".mp4", ".avi", ".mkv", ".mov", ".flv",
-                        ".apk", ".exe", ".dmg", ".pkg", ".deb", ".rpm",
-                        ".csv", ".json", ".xml", ".epub", ".mobi"
-                };
-
-                for (String ext : downloadExtensions) {
-                    if (url.contains(ext + "?") || url.endsWith(ext)) {
-                        return true;
-                    }
-                }
-
-                return url.contains("download=") ||
-                        url.contains("download.php") ||
-                        url.contains("/download/");
             }
         });
 
-        // Enhanced Download Listener for audio files
+        // Enhanced Download Listener
         mWebView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
-            String lowerUrl = url.toLowerCase();
-            if (lowerUrl.contains(".mp3") || lowerUrl.contains(".wav") || 
-                lowerUrl.contains(".ogg") || lowerUrl.contains(".m4a")) {
-                downloadAndStoreSong(url);
+            if (isAudioFile(url)) {
+                handleAudioDownload(url, getFileNameFromUrl(url));
             } else {
                 openExternally(url);
             }
@@ -140,48 +123,275 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void downloadAndStoreSong(String url) {
-        new Thread(() -> {
-            try {
-                URL downloadUrl = new URL(url);
-                URLConnection connection = downloadUrl.openConnection();
-                connection.connect();
+    // JavaScript Interface for communication between WebView and Android
+    public class WebAppInterface {
+        @JavascriptInterface
+        public void downloadSong(String url, String songName, String artist) {
+            handleAudioDownload(url, songName + " - " + artist + ".mp3");
+        }
 
-                // Get file name
-                String fileName = URLUtil.guessFileName(url, null, null);
-                File outputFile = new File(musicDirectory, fileName);
+        @JavascriptInterface
+        public void playSong(String filePath) {
+            openMusicPlayer(filePath);
+        }
 
-                InputStream input = connection.getInputStream();
-                FileOutputStream output = new FileOutputStream(outputFile);
+        @JavascriptInterface
+        public String getDownloadedSongs() {
+            return getSongsListAsJson();
+        }
 
-                byte[] buffer = new byte[4096];
-                int bytesRead;
-                long totalBytesRead = 0;
-                int contentLength = connection.getContentLength();
+        @JavascriptInterface
+        public void showToast(String message) {
+            Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
+        }
+    }
 
-                while ((bytesRead = input.read(buffer)) != -1) {
-                    output.write(buffer, 0, bytesRead);
-                    totalBytesRead += bytesRead;
-                }
+    // Inject JavaScript to handle download clicks
+    private void injectDownloadHandler() {
+        String jsCode = """
+            javascript:(function() {
+                // Override download buttons
+                const originalFetch = window.fetch;
+                window.fetch = function(...args) {
+                    const url = args[0];
+                    if (typeof url === 'string' && url.includes('/api/download')) {
+                        // Intercept download API calls
+                        return originalFetch.apply(this, args).then(response => {
+                            if (response.ok) {
+                                response.clone().json().then(data => {
+                                    if (data.download_id) {
+                                        // Monitor download status
+                                        monitorDownload(data.download_id, data);
+                                    }
+                                });
+                            }
+                            return response;
+                        });
+                    }
+                    return originalFetch.apply(this, args);
+                };
 
-                output.flush();
-                output.close();
-                input.close();
-
-                runOnUiThread(() -> {
-                    Toast.makeText(MainActivity.this, 
-                        "Song downloaded: " + fileName, Toast.LENGTH_LONG).show();
-                    
-                    // Optionally open music player
-                    openMusicPlayer(outputFile.getAbsolutePath());
+                // Override download button clicks
+                document.addEventListener('click', function(e) {
+                    const btn = e.target.closest('.download-btn');
+                    if (btn) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        const songCard = btn.closest('.song-card');
+                        const songName = songCard.querySelector('h3').textContent;
+                        const artist = songCard.querySelector('.artist').textContent;
+                        
+                        // Get download URL from data attributes or href
+                        let downloadUrl = btn.getAttribute('data-url') || 
+                                         btn.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+                        
+                        if (downloadUrl && Android) {
+                            Android.downloadSong(downloadUrl, songName, artist);
+                            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
+                            btn.disabled = true;
+                        }
+                    }
                 });
 
-            } catch (Exception e) {
+                // Add play functionality to song cards
+                document.addEventListener('click', function(e) {
+                    const playBtn = e.target.closest('.play-button');
+                    if (playBtn) {
+                        const songCard = playBtn.closest('.song-card');
+                        const songName = songCard.querySelector('h3').textContent;
+                        const artist = songCard.querySelector('.artist').textContent;
+                        
+                        // Check if song is downloaded
+                        const fileName = songName + ' - ' + artist + '.mp3';
+                        if (Android) {
+                            const songs = JSON.parse(Android.getDownloadedSongs());
+                            const song = songs.find(s => s.name === fileName);
+                            if (song) {
+                                Android.playSong(song.path);
+                            } else {
+                                Android.showToast('Song not downloaded yet');
+                            }
+                        }
+                    }
+                });
+
+                function monitorDownload(downloadId, data) {
+                    const checkStatus = async () => {
+                        try {
+                            const response = await fetch('/api/download/' + downloadId + '/status');
+                            const status = await response.json();
+                            
+                            if (status.status === 'completed') {
+                                // Download completed - file is ready
+                                const fileResponse = await fetch('/api/download/' + downloadId + '/file');
+                                const blob = await fileResponse.blob();
+                                
+                                // Convert blob to object URL and trigger download
+                                const url = URL.createObjectURL(blob);
+                                if (Android) {
+                                    Android.downloadSong(url, data.song_name || 'song', data.artist || 'artist');
+                                }
+                            } else if (status.status === 'processing' || status.status === 'downloading') {
+                                // Still processing, check again in 2 seconds
+                                setTimeout(checkStatus, 2000);
+                            }
+                        } catch (error) {
+                            console.error('Status check error:', error);
+                        }
+                    };
+                    checkStatus();
+                }
+
+                // Update download buttons with local file status
+                setTimeout(() => {
+                    if (Android) {
+                        const downloadedSongs = JSON.parse(Android.getDownloadedSongs());
+                        document.querySelectorAll('.song-card').forEach(card => {
+                            const songName = card.querySelector('h3').textContent;
+                            const artist = card.querySelector('.artist').textContent;
+                            const fileName = songName + ' - ' + artist + '.mp3';
+                            const btn = card.querySelector('.download-btn');
+                            
+                            if (downloadedSongs.some(song => song.name === fileName)) {
+                                btn.innerHTML = '<i class="fas fa-check"></i> Downloaded';
+                                btn.style.background = '#1DB954';
+                                btn.style.color = 'black';
+                                btn.disabled = true;
+                            }
+                        });
+                    }
+                }, 1000);
+
+            })();
+        """;
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
+            mWebView.evaluateJavascript(jsCode, null);
+        } else {
+            mWebView.loadUrl(jsCode);
+        }
+    }
+
+    private void handleAudioDownload(String url, String fileName) {
+        new Thread(() -> {
+            try {
                 runOnUiThread(() -> 
+                    Toast.makeText(MainActivity.this, "Starting download: " + fileName, Toast.LENGTH_SHORT).show());
+
+                HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+                connection.setRequestMethod("GET");
+                connection.setRequestProperty("User-Agent", "Mozilla/5.0...");
+                
+                // Add cookies if available
+                String cookies = CookieManager.getInstance().getCookie(url);
+                if (cookies != null) {
+                    connection.setRequestProperty("Cookie", cookies);
+                }
+
+                connection.connect();
+
+                if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
+                    // Clean filename
+                    fileName = fileName.replaceAll("[^a-zA-Z0-9.-]", "_");
+                    if (!fileName.toLowerCase().endsWith(".mp3")) {
+                        fileName += ".mp3";
+                    }
+
+                    File outputFile = new File(musicDirectory, fileName);
+
+                    InputStream input = connection.getInputStream();
+                    FileOutputStream output = new FileOutputStream(outputFile);
+
+                    byte[] buffer = new byte[4096];
+                    int bytesRead;
+                    long totalBytesRead = 0;
+                    int contentLength = connection.getContentLength();
+
+                    while ((bytesRead = input.read(buffer)) != -1) {
+                        output.write(buffer, 0, bytesRead);
+                        totalBytesRead += bytesRead;
+                        
+                        // Update progress if needed
+                        final long currentTotal = totalBytesRead;
+                        final long total = contentLength;
+                        runOnUiThread(() -> {
+                            if (contentLength > 0) {
+                                int progress = (int) ((currentTotal * 100) / total);
+                                // You could update a progress bar here
+                            }
+                        });
+                    }
+
+                    output.flush();
+                    output.close();
+                    input.close();
+
+                    runOnUiThread(() -> {
+                        Toast.makeText(MainActivity.this, 
+                            "Download complete: " + fileName, Toast.LENGTH_LONG).show();
+                        
+                        // Refresh the WebView to update download status
+                        mWebView.reload();
+                    });
+
+                } else {
+                    throw new Exception("HTTP error: " + connection.getResponseCode());
+                }
+
+            } catch (Exception e) {
+                runOnUiThread(() -> {
                     Toast.makeText(MainActivity.this, 
-                        "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                        "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    e.printStackTrace();
+                });
             }
         }).start();
+    }
+
+    private String getSongsListAsJson() {
+        try {
+            JSONArray songsArray = new JSONArray();
+            File[] files = musicDirectory.listFiles();
+            
+            if (files != null) {
+                for (File file : files) {
+                    String name = file.getName().toLowerCase();
+                    if (name.endsWith(".mp3") || name.endsWith(".wav") || 
+                        name.endsWith(".ogg") || name.endsWith(".m4a")) {
+                        
+                        JSONObject song = new JSONObject();
+                        song.put("name", file.getName());
+                        song.put("path", file.getAbsolutePath());
+                        song.put("size", file.length());
+                        songsArray.put(song);
+                    }
+                }
+            }
+            return songsArray.toString();
+        } catch (Exception e) {
+            return "[]";
+        }
+    }
+
+    private boolean isAudioFile(String url) {
+        if (url == null) return false;
+        String lowerUrl = url.toLowerCase();
+        return lowerUrl.contains(".mp3") || lowerUrl.contains(".wav") || 
+               lowerUrl.contains(".ogg") || lowerUrl.contains(".m4a") ||
+               lowerUrl.contains("/api/download/") || lowerUrl.contains("/file");
+    }
+
+    private String getFileNameFromUrl(String url) {
+        try {
+            String fileName = URLUtil.guessFileName(url, null, null);
+            if (fileName == null || fileName.isEmpty()) {
+                fileName = "download_" + System.currentTimeMillis() + ".mp3";
+            }
+            return fileName;
+        } catch (Exception e) {
+            return "download_" + System.currentTimeMillis() + ".mp3";
+        }
     }
 
     private void openMusicPlayer(String songPath) {
