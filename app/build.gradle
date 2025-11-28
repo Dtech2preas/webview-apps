@@ -12,6 +12,7 @@ android {
         versionName "1.25"
     }
 
+    
     buildTypes {
         release {
             minifyEnabled false
