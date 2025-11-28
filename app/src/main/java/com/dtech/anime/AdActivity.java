@@ -1,16 +1,18 @@
-package com.yrum.ppmyvr;
+package com.dtech.anime;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.net.http.SslError;
 import android.os.Bundle;
 import android.view.View;
+import android.webkit.SslErrorHandler;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
-public class PopupWebViewActivity extends Activity {
+public class AdActivity extends Activity {
 
     private WebView popupWebView;
 
@@ -30,13 +32,25 @@ public class PopupWebViewActivity extends Activity {
         popupWebView.setWebChromeClient(new WebChromeClient());
         popupWebView.setWebViewClient(new WebViewClient() {
             @Override
+            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                handler.proceed(); // Ignore SSL errors
+            }
+
+            @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 return false; // Allow all redirects
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return false;
             }
         });
 
         String url = getIntent().getStringExtra("url");
-        popupWebView.loadUrl(url);
+        if (url != null) {
+            popupWebView.loadUrl(url);
+        }
 
         enterImmersiveMode();
     }
