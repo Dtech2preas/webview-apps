@@ -3,7 +3,6 @@ package com.dtech.anime;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
@@ -18,7 +17,6 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
-import java.net.URISyntaxException;
 
 public class MainActivity extends Activity {
 
@@ -50,69 +48,16 @@ public class MainActivity extends Activity {
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return handleUrl(view, url);
+                return false; // Allow everything to load in WebView
             }
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return handleUrl(view, request.getUrl().toString());
-            }
-
-            private boolean handleUrl(WebView view, String url) {
-                if (url == null) return false;
-
-                // Standard Web URLs: Load in WebView
-                if (url.startsWith("http://") || url.startsWith("https://")) {
-                    return false;
-                }
-
-                // INTENT scheme
-                if (url.startsWith("intent://")) {
-                    try {
-                        Intent intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME);
-                        if (intent != null) {
-                            view.getContext().startActivity(intent);
-                            return true;
-                        }
-                    } catch (URISyntaxException e) {
-                        // Log.e("WebView", "Invalid Intent URI", e);
-                    } catch (ActivityNotFoundException e) {
-                        // App not installed. Try fallback URL or Market.
-                        try {
-                            Intent intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME);
-                            String fallbackUrl = intent.getStringExtra("browser_fallback_url");
-                            if (fallbackUrl != null) {
-                                view.loadUrl(fallbackUrl);
-                                return true;
-                            }
-
-                            // Redirect to Play Store if package is available
-                            String packageName = intent.getPackage();
-                            if (packageName != null) {
-                                Intent marketIntent = new Intent(Intent.ACTION_VIEW);
-                                marketIntent.setData(Uri.parse("market://details?id=" + packageName));
-                                view.getContext().startActivity(marketIntent);
-                                return true;
-                            }
-                        } catch (Exception ex) {
-                            // Log.e("WebView", "Failed to handle fallback/market", ex);
-                        }
-                    }
-                    return true; // Prevent error page for unknown scheme
-                }
-
-                // Other Custom Schemes (market:, tel:, mailto:, etc.)
-                try {
-                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                    view.getContext().startActivity(intent);
-                    return true;
-                } catch (Exception e) {
-                    return true; // Ignore if system cannot handle it, don't show error page
-                }
+                return false; // Allow everything to load in WebView
             }
         });
 
-        // Handle downloads triggered by JavaScript
+        // Handle downloads triggered by JavaScript (Optional, keeping it simple)
         mWebView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
             try {
                 Intent intent = new Intent(Intent.ACTION_VIEW);
@@ -135,7 +80,7 @@ public class MainActivity extends Activity {
         if (mWebView.canGoBack()) {
             mWebView.goBack();
         } else {
-            super.onBackPressed();
+            super.onBackPressed(); // Exit app if no history
         }
     }
 
