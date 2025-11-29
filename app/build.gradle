@@ -1,11 +1,11 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace 'com.dtech.anime'
+    namespace 'com.dtech.automation'
     compileSdkVersion 34
 
     defaultConfig {
-        applicationId "com.dtech.anime"
+        applicationId "com.dtech.automation"
         minSdkVersion 21
         targetSdkVersion 34
         versionCode 56898

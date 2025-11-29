@@ -1,4 +1,4 @@
-package com.dtech.anime;
+package com.dtech.automation;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
