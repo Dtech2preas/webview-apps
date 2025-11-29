@@ -44,7 +44,7 @@ public class DailyReminderWorker extends Worker {
                 .setContentIntent(pendingIntent)
                 .setAutoCancel(true);
 
-        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        NotificationManager manager = context.getSystemService(NotificationManager.class);
         if (manager != null) {
             manager.notify(2, builder.build());
         }
