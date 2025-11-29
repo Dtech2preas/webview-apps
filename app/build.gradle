@@ -1,11 +1,11 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace 'com.dtech.anime'
+    namespace 'com.dtech.automation'
     compileSdkVersion 34
 
     defaultConfig {
-        applicationId "com.dtech.anime"
+        applicationId "com.dtech.automation"
         minSdkVersion 21
         targetSdkVersion 34
         versionCode 56898
@@ -26,4 +26,5 @@ dependencies {
     // Compatible AndroidX dependencies
     implementation 'androidx.annotation:annotation:1.7.1'
     implementation 'androidx.core:core:1.12.0'
+    implementation 'androidx.work:work-runtime:2.9.0'
 }
