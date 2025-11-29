@@ -57,7 +57,7 @@ public class DailyReminderWorker extends Worker {
                     "Daily Reminder",
                     NotificationManager.IMPORTANCE_HIGH
             );
-            NotificationManager manager = context.getSystemService(NotificationManager.class);
+            NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
             if (manager != null) {
                 manager.createNotificationChannel(channel);
             }
