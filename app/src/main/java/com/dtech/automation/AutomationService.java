@@ -132,6 +132,10 @@ public class AutomationService extends Service {
         if (callback != null) {
             // Inject with override value
             callback.injectScript(currentItem.url);
+
+            // Start Timeout (5 minutes)
+            timeoutHandler.removeCallbacks(timeoutRunnable);
+            timeoutHandler.postDelayed(timeoutRunnable, 5 * 60 * 1000);
         }
     }
 
@@ -189,7 +193,7 @@ public class AutomationService extends Service {
     }
 
     private void updateNotification(String text, int progress, int max) {
-        NotificationManager manager = getSystemService(NotificationManager.class);
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager != null) {
             manager.notify(1, createNotification(text, progress, max));
         }
@@ -215,7 +219,7 @@ public class AutomationService extends Service {
                     "Automation Service Channel",
                     NotificationManager.IMPORTANCE_DEFAULT
             );
-            NotificationManager manager = getSystemService(NotificationManager.class);
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (manager != null) {
                 manager.createNotificationChannel(serviceChannel);
             }

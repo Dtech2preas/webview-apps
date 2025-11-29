@@ -2,7 +2,8 @@
 (function() {
     console.log("Replayer injected.");
 
-    // window.replayEvents, window.replayStartTime, and window.lastExecutedIndex should be set by Java
+    // window.replayEvents, window.replayStartTime, window.lastExecutedIndex
+    // AND window.overrideInputValue should be set by Java
     if (!window.replayEvents || !window.replayStartTime) {
         console.error("Replay data missing");
         return;
@@ -11,6 +12,7 @@
     var events = window.replayEvents;
     var startTime = window.replayStartTime;
     var lastIndex = (typeof window.lastExecutedIndex === 'number') ? window.lastExecutedIndex : -1;
+    var overrideValue = window.overrideInputValue || null;
 
     // Sort events
     events.sort(function(a,b){ return a.time - b.time; });
@@ -39,7 +41,12 @@
         if (event.type === 'click') {
             el.click();
         } else if (event.type === 'input') {
-            el.value = event.value;
+            // overrideValue provided? Use it!
+            if (overrideValue) {
+                el.value = overrideValue;
+            } else {
+                el.value = event.value;
+            }
             el.dispatchEvent(new Event('input', { bubbles: true }));
             el.dispatchEvent(new Event('change', { bubbles: true }));
         } else if (event.type === 'scroll') {
@@ -75,11 +82,12 @@
 
     // Schedule events
     var now = Date.now();
+    var hasScheduledEvents = false;
 
     events.forEach(function(event, index) {
-        // Skip events that were already executed in previous pages
         if (index <= lastIndex) return;
 
+        hasScheduledEvents = true;
         var targetTime = startTime + event.time;
         var delay = targetTime - now;
 
@@ -89,5 +97,26 @@
             simulateEvent(event, index);
         }, delay);
     });
+
+    // Check if we are done immediately (if all events were skipped or list empty)
+    // Actually, we rely on the LAST event being executed to know we are done?
+    // Or we can schedule a "Done" check after the last event's time.
+    if (events.length > 0) {
+        var lastEvent = events[events.length - 1];
+        var finishTime = startTime + lastEvent.time;
+        var finishDelay = finishTime - now + 1000; // +1s buffer
+        if (finishDelay < 0) finishDelay = 1000;
+
+        setTimeout(function() {
+            console.log("Replay finished check.");
+            if (window.Android && window.Android.replayFinished) {
+                window.Android.replayFinished();
+            }
+        }, finishDelay);
+    } else {
+        if (window.Android && window.Android.replayFinished) {
+             window.Android.replayFinished();
+        }
+    }
 
 })();
