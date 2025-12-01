@@ -77,7 +77,6 @@
     var now = Date.now();
 
     events.forEach(function(event, index) {
-        // Skip events that were already executed in previous pages
         if (index <= lastIndex) return;
 
         var targetTime = startTime + event.time;
