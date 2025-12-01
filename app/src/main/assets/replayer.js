@@ -2,7 +2,6 @@
 (function() {
     console.log("Replayer injected.");
 
-    // window.replayEvents, window.replayStartTime, and window.lastExecutedIndex should be set by Java
     if (!window.replayEvents || !window.replayStartTime) {
         console.error("Replay data missing");
         return;
@@ -11,8 +10,9 @@
     var events = window.replayEvents;
     var startTime = window.replayStartTime;
     var lastIndex = (typeof window.lastExecutedIndex === 'number') ? window.lastExecutedIndex : -1;
+    var overrideEmail = window.overrideEmail || null;
+    var overridePassword = window.overridePassword || null;
 
-    // Sort events
     events.sort(function(a,b){ return a.time - b.time; });
 
     function simulateEvent(event, index) {
@@ -39,14 +39,54 @@
         if (event.type === 'click') {
             el.click();
         } else if (event.type === 'input') {
-            el.value = event.value;
+            // SUBSTITUTION LOGIC
+            var valToSet = event.value;
+
+            // Check if it's a password field
+            if (el.type === 'password' && overridePassword) {
+                console.log("Substituting Password");
+                valToSet = overridePassword;
+            }
+            // Check if it's likely an email field
+            // Heuristic: Explicit email type OR text type that isn't search/hidden
+            // AND user provided an override
+            else if (overrideEmail) {
+                 var type = (el.type || "").toLowerCase();
+                 var name = (el.name || "").toLowerCase();
+                 var id = (el.id || "").toLowerCase();
+
+                 var isEmailType = type === 'email';
+                 var isTextType = type === 'text';
+                 var looksLikeEmail = name.includes("email") || name.includes("user") || name.includes("login") ||
+                                      id.includes("email") || id.includes("user");
+
+                 if (isEmailType || (isTextType && looksLikeEmail) || (isTextType && !looksLikeEmail && index === 0)) {
+                      // Fallback: if it's the first text input we see, assume it's email if unsure
+                      console.log("Substituting Email");
+                      valToSet = overrideEmail;
+                 }
+            }
+
+            // Set value
+            var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+            if (nativeInputValueSetter) {
+                nativeInputValueSetter.call(el, valToSet);
+            } else {
+                el.value = valToSet;
+            }
+
+            // Dispatch events to ensure frameworks pick it up
             el.dispatchEvent(new Event('input', { bubbles: true }));
             el.dispatchEvent(new Event('change', { bubbles: true }));
+
+            el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
+            el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+            el.dispatchEvent(new KeyboardEvent('keypress', { bubbles: true }));
+
         } else if (event.type === 'scroll') {
             window.scrollTo(event.value.x, event.value.y);
         }
 
-        // Notify Java that this event is done
         if (window.Android && window.Android.eventExecuted) {
             window.Android.eventExecuted(index);
         }
@@ -73,7 +113,6 @@
         });
     }
 
-    // Schedule events
     var now = Date.now();
 
     events.forEach(function(event, index) {
