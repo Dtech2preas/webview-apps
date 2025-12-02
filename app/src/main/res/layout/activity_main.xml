@@ -43,6 +43,14 @@
             android:layout_weight="1"
             android:text="PLAY" />
 
+        <Button
+            android:id="@+id/btn_export_script"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="EXPORT NAV"
+            android:visibility="gone"/>
+
     </LinearLayout>
 
     <LinearLayout
