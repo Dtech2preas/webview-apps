@@ -3,7 +3,18 @@
     android:id="@+id/main_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="#121212">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Web Automation by DTECH"
+        android:textColor="#2196F3"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:padding="8dp"
+        android:background="#000000"/>
 
     <WebView
         android:id="@+id/activity_main_webview"
@@ -15,7 +26,7 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="0.2"
-        android:background="#EEEEEE"
+        android:background="#1E1E1E"
         android:orientation="horizontal"
         android:gravity="center"
         android:padding="8dp">
@@ -26,6 +37,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="RECORD"
+            android:backgroundTint="#2196F3"
+            android:textColor="#FFFFFF"
             android:layout_marginEnd="4dp" />
 
         <Button
@@ -33,7 +46,9 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="STOP &amp; SAVE"
+            android:text="STOP REC"
+            android:backgroundTint="#D32F2F"
+            android:textColor="#FFFFFF"
             android:layout_marginEnd="4dp" />
 
         <Button
@@ -41,14 +56,28 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="PLAY" />
+            android:text="PLAY"
+            android:backgroundTint="#2196F3"
+            android:textColor="#FFFFFF" />
+
+        <Button
+            android:id="@+id/btn_stop_batch"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="STOP"
+            android:backgroundTint="#D32F2F"
+            android:textColor="#FFFFFF"
+            android:visibility="gone"/>
 
         <Button
             android:id="@+id/btn_export_script"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="EXPORT NAV"
+            android:text="EXPORT"
+            android:backgroundTint="#555555"
+            android:textColor="#FFFFFF"
             android:visibility="gone"/>
 
     </LinearLayout>
@@ -57,6 +86,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
+        android:background="#121212"
         android:padding="8dp">
 
         <Button
@@ -65,6 +95,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Settings"
+            android:backgroundTint="#2196F3"
+            android:textColor="#FFFFFF"
             android:layout_marginEnd="4dp"/>
 
         <Button
@@ -73,6 +105,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Results"
+            android:backgroundTint="#2196F3"
+            android:textColor="#FFFFFF"
             android:layout_marginStart="4dp"/>
     </LinearLayout>
 
@@ -80,6 +114,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
+        android:background="#121212"
         android:padding="8dp">
 
         <Button
@@ -88,6 +123,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Info"
+            android:backgroundTint="#2196F3"
+            android:textColor="#FFFFFF"
             android:layout_marginEnd="4dp"/>
 
         <Button
@@ -96,6 +133,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Ad System"
+            android:backgroundTint="#2196F3"
+            android:textColor="#FFFFFF"
             android:layout_marginStart="4dp"/>
     </LinearLayout>
 
