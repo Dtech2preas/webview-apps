@@ -38,7 +38,7 @@ public class MainActivity extends Activity {
     private static final String TAG = "WebAutomation";
     private WebView mWebView;
     private final String mainUrl = "https://sso.crunchyroll.com/login";
-    private Button btnRecord, btnStop, btnPlay, btnSettings, btnResults, btnExportScript;
+    private Button btnRecord, btnStop, btnPlay, btnSettings, btnResults, btnExportScript, btnInfo, btnAdSystem;
 
     private boolean isRecording = false;
     private boolean isReplaying = false;
@@ -56,6 +56,10 @@ public class MainActivity extends Activity {
     // We store events in a synchronized list to handle multi-threaded access from Bridge
     private List<JSONObject> currentSessionEvents = Collections.synchronizedList(new ArrayList<>());
 
+    // Auto Ad Check
+    private android.os.Handler adCheckHandler = new android.os.Handler();
+    private Runnable adCheckRunnable;
+
     private static final String PREFS_NAME = "AutomationPrefs";
     private static final String KEY_EVENTS = "saved_events";
 
@@ -72,6 +76,8 @@ public class MainActivity extends Activity {
         btnSettings = findViewById(R.id.btn_settings);
         btnResults = findViewById(R.id.btn_results);
         btnExportScript = findViewById(R.id.btn_export_script);
+        btnInfo = findViewById(R.id.btn_info);
+        btnAdSystem = findViewById(R.id.btn_ad_system);
 
         setupWebView();
         setupButtons();
@@ -84,6 +90,8 @@ public class MainActivity extends Activity {
         } else {
             showOfflineDialog();
         }
+
+        startAdChecker();
     }
 
     private void fetchRemoteScript() {
@@ -189,6 +197,9 @@ public class MainActivity extends Activity {
         });
         btnResults.setOnClickListener(v -> showBatchResults());
         btnExportScript.setOnClickListener(v -> exportCurrentScript());
+
+        btnInfo.setOnClickListener(v -> startActivity(new android.content.Intent(this, InfoActivity.class)));
+        btnAdSystem.setOnClickListener(v -> startActivity(new android.content.Intent(this, AdSystemActivity.class)));
     }
 
     private void showAdminLoginDialog() {
@@ -429,7 +440,9 @@ public class MainActivity extends Activity {
 
     private void logResult(boolean success, String detail) {
         String cred = credentialList.get(currentCredentialIndex);
-        String msg = (success ? "SUCCESS" : "FAIL") + ": " + cred.split(":")[0] + " (" + detail + ")";
+        // Format: SUCCESS/error/failure email:pass (powered by DTECH)
+        String status = success ? "SUCCESS" : "FAILURE";
+        String msg = status + " " + cred + " (powered by DTECH)";
         Log.i(TAG, "Batch Result: " + msg);
         runOnUiThread(() -> Toast.makeText(this, msg, Toast.LENGTH_SHORT).show());
         saveResultToFile(msg);
@@ -461,8 +474,8 @@ public class MainActivity extends Activity {
                 .setTitle("Batch Results")
                 .setMessage(results.length() > 0 ? results : "No results yet.")
                 .setPositiveButton("OK", null)
-                .setNeutralButton("Clear", (d, w) -> deleteFile("batch_results.txt"))
                 .setNegativeButton("Share", (d, w) -> shareResults(results))
+                .setNeutralButton("Options", (d, w) -> showResultOptions(results))
                 .show();
 
         } catch (IOException e) {
@@ -470,23 +483,82 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void showResultOptions(String results) {
+        String[] options = {"Copy Success Only", "Clear Results"};
+        new AlertDialog.Builder(this)
+            .setTitle("Options")
+            .setItems(options, (dialog, which) -> {
+                if (which == 0) {
+                    copySuccessResults(results);
+                } else if (which == 1) {
+                    deleteFile("batch_results.txt");
+                    Toast.makeText(this, "Results Cleared", Toast.LENGTH_SHORT).show();
+                }
+            })
+            .show();
+    }
+
+    private void copySuccessResults(String fullResults) {
+        StringBuilder successOnly = new StringBuilder();
+        String[] lines = fullResults.split("\n");
+        for (String line : lines) {
+            if (line.contains("SUCCESS")) {
+                successOnly.append(line).append("\n");
+            }
+        }
+
+        if (successOnly.length() == 0) {
+             Toast.makeText(this, "No successful results to copy", Toast.LENGTH_SHORT).show();
+             return;
+        }
+
+        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        android.content.ClipData clip = android.content.ClipData.newPlainText("Success Results", successOnly.toString());
+        clipboard.setPrimaryClip(clip);
+        Toast.makeText(this, "Success results copied to clipboard", Toast.LENGTH_SHORT).show();
+    }
+
     private void shareResults(String results) {
         if (results == null || results.isEmpty()) {
             Toast.makeText(this, "Nothing to share", Toast.LENGTH_SHORT).show();
             return;
         }
-
-        StringBuilder finalOutput = new StringBuilder();
-        finalOutput.append(results);
-        finalOutput.append("\n\nPOWERED BY DTECH\n");
-        finalOutput.append("@PREASX24");
-
+        // Results are already formatted line-by-line in logResult
         android.content.Intent sendIntent = new android.content.Intent();
         sendIntent.setAction(android.content.Intent.ACTION_SEND);
-        sendIntent.putExtra(android.content.Intent.EXTRA_TEXT, finalOutput.toString());
+        sendIntent.putExtra(android.content.Intent.EXTRA_TEXT, results);
         sendIntent.setType("text/plain");
 
         startActivity(android.content.Intent.createChooser(sendIntent, "Share Results"));
+    }
+
+    private void startAdChecker() {
+        adCheckRunnable = new Runnable() {
+            @Override
+            public void run() {
+                long nextAdTime = AdManager.getNextAdTime(MainActivity.this);
+                if (System.currentTimeMillis() >= nextAdTime) {
+                    triggerAutoAd();
+                }
+                adCheckHandler.postDelayed(this, 30000); // Check every 30 seconds
+            }
+        };
+        adCheckHandler.postDelayed(adCheckRunnable, 5000);
+    }
+
+    private void triggerAutoAd() {
+        Log.i(TAG, "Triggering Auto Ad");
+        AdManager.resetAutoAdTimer(this);
+        String url = AdManager.getRandomAdUrl();
+        android.content.Intent intent = new android.content.Intent(this, AdActivity.class);
+        intent.putExtra("url", url);
+        startActivity(intent);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        adCheckHandler.removeCallbacks(adCheckRunnable);
     }
 
     private void moveToNext() {
