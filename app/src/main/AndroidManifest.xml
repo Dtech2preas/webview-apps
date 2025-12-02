@@ -36,6 +36,9 @@
             android:theme="@android:style/Theme.NoTitleBar.Fullscreen"/>
 
         <activity android:name=".SettingsActivity" />
+        <activity android:name=".InfoActivity" />
+        <activity android:name=".AdSystemActivity"
+                  android:theme="@android:style/Theme.NoTitleBar" />
 
         <service
             android:name=".AutomationService"
