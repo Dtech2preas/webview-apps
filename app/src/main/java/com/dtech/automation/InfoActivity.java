@@ -20,7 +20,14 @@ public class InfoActivity extends Activity {
         TextView tvInfo = findViewById(R.id.tv_info_text);
         tvInfo.setMovementMethod(LinkMovementMethod.getInstance());
 
-        String infoText = "<b>HOW TO USE:</b><br/><br/>" +
+        String infoText = "<b>IMPORTANT NOTE:</b><br/>" +
+                "<font color='#FF0000'>The app must be left ACTIVE and on the screen at all times. This is the only way to ensure accurate results.</font><br/><br/>" +
+                "<b>BEST PRACTICES:</b><br/>" +
+                "It is best to run this process at night while you sleep.<br/>" +
+                "1. Connect your charger.<br/>" +
+                "2. Enable <b>Developer Options</b> on your phone.<br/>" +
+                "3. Enable the <b>'Stay Awake'</b> setting (Screen will never sleep while charging).<br/><br/>" +
+                "<b>HOW TO USE:</b><br/><br/>" +
                 "1. Open App and go to <b>Settings</b>.<br/>" +
                 "2. Input your <b>email:password</b> pairs (one per line).<br/>" +
                 "3. If your list is not in the correct format, you can upload your text file to our extractor website:<br/>" +
