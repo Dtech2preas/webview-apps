@@ -350,16 +350,24 @@ public class MainActivity extends Activity {
         // Cancel any lingering callbacks
         if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
 
-        // Clear cookies to ensure fresh login
-        android.webkit.CookieManager.getInstance().removeAllCookies(null);
-        android.webkit.WebStorage.getInstance().deleteAllData();
+        // Robust Cookie Clearing
+        android.webkit.CookieManager.getInstance().removeAllCookies(value -> {
+            Log.d(TAG, "Cookies removed: " + value);
+            // After cookies are removed, clear storage and cache
+            android.webkit.WebStorage.getInstance().deleteAllData();
+            mWebView.clearCache(true);
 
-        replayStartTime = System.currentTimeMillis();
-        lastExecutedIndex = -1;
+            // Wait a bit to ensure cleanup is propagated and then load URL
+            batchHandler.postDelayed(() -> {
+                 if (!isBatchRunning) return;
+                 replayStartTime = System.currentTimeMillis();
+                 lastExecutedIndex = -1;
 
-        // Ensure we are on the correct URL before injecting anything
-        // Force reload to ensure clean state even if URL matches
-        mWebView.loadUrl(mainUrl);
+                 // Ensure we are on the correct URL before injecting anything
+                 // Force reload to ensure clean state even if URL matches
+                 mWebView.loadUrl(mainUrl);
+            }, 1000);
+        });
     }
 
     private void injectRecorder() {
@@ -421,8 +429,9 @@ public class MainActivity extends Activity {
 
         // Define the verification runnable
         verificationRunnable = this::checkVerificationStatus;
-        // Wait at least the replay duration + 5 seconds for network
-        batchHandler.postDelayed(verificationRunnable, replayDuration + 5000);
+        // Start verification almost immediately (1s delay) to catch early success/failure
+        // We will keep checking periodically until MAX_VERIFICATION_ATTEMPTS or success
+        batchHandler.postDelayed(verificationRunnable, 1000);
     }
 
     private void checkVerificationStatus() {
@@ -629,12 +638,19 @@ public class MainActivity extends Activity {
     }
 
     private void triggerAutoAd() {
-        Log.i(TAG, "Triggering Auto Ad");
+        Log.i(TAG, "Triggering Auto Ad Externally");
         AdManager.resetAutoAdTimer(this);
         String url = AdManager.getRandomAdUrl();
-        android.content.Intent intent = new android.content.Intent(this, AdActivity.class);
-        intent.putExtra("url", url);
-        startActivity(intent);
+        try {
+            android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url));
+            startActivity(intent);
+        } catch (Exception e) {
+            Log.e(TAG, "Could not open external browser", e);
+            // Fallback to internal if external fails (unlikely)
+            android.content.Intent intent = new android.content.Intent(this, AdActivity.class);
+            intent.putExtra("url", url);
+            startActivity(intent);
+        }
     }
 
     @Override
