@@ -38,7 +38,7 @@ public class MainActivity extends Activity {
     private static final String TAG = "WebAutomation";
     private WebView mWebView;
     private final String mainUrl = "https://sso.crunchyroll.com/login";
-    private Button btnRecord, btnStop, btnPlay, btnSettings, btnResults;
+    private Button btnRecord, btnStop, btnPlay, btnSettings, btnResults, btnExportScript;
 
     private boolean isRecording = false;
     private boolean isReplaying = false;
@@ -71,17 +71,66 @@ public class MainActivity extends Activity {
         btnPlay = findViewById(R.id.btn_play);
         btnSettings = findViewById(R.id.btn_settings);
         btnResults = findViewById(R.id.btn_results);
+        btnExportScript = findViewById(R.id.btn_export_script);
 
         setupWebView();
         setupButtons();
 
         loadSavedEvents();
+        fetchRemoteScript();
 
         if (isConnected()) {
             mWebView.loadUrl(mainUrl);
         } else {
             showOfflineDialog();
         }
+    }
+
+    private void fetchRemoteScript() {
+        new Thread(() -> {
+            try {
+                java.net.URL url = new java.net.URL("https://www.preasx24.co.za/navigation.json");
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(10000);
+                conn.setRequestMethod("GET");
+
+                if (conn.getResponseCode() == 200) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        sb.append(line);
+                    }
+                    reader.close();
+
+                    String jsonResponse = sb.toString();
+                    // Validate JSON
+                    JSONArray jsonArray = new JSONArray(jsonResponse);
+
+                    // Save and Update
+                    runOnUiThread(() -> {
+                        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                        prefs.edit().putString(KEY_EVENTS, jsonResponse).apply();
+
+                        // Update memory
+                        currentSessionEvents.clear();
+                        try {
+                            for (int i = 0; i < jsonArray.length(); i++) {
+                                currentSessionEvents.add(jsonArray.getJSONObject(i));
+                            }
+                            Log.i(TAG, "Remote script fetched and updated: " + currentSessionEvents.size() + " events");
+                        } catch (JSONException e) {
+                            Log.e(TAG, "Error updating memory from remote", e);
+                        }
+                    });
+                } else {
+                    Log.e(TAG, "Remote fetch failed: " + conn.getResponseCode());
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error fetching remote script", e);
+            }
+        }).start();
     }
 
     private void setupWebView() {
@@ -125,11 +174,62 @@ public class MainActivity extends Activity {
     }
 
     private void setupButtons() {
+        // Default State: Hide Admin Controls
+        btnRecord.setVisibility(android.view.View.GONE);
+        btnStop.setVisibility(android.view.View.GONE);
+        btnExportScript.setVisibility(android.view.View.GONE);
+
         btnRecord.setOnClickListener(v -> startRecording());
         btnStop.setOnClickListener(v -> stopRecording());
         btnPlay.setOnClickListener(v -> startBatchReplay());
         btnSettings.setOnClickListener(v -> startActivity(new android.content.Intent(this, SettingsActivity.class)));
+        btnSettings.setOnLongClickListener(v -> {
+            showAdminLoginDialog();
+            return true;
+        });
         btnResults.setOnClickListener(v -> showBatchResults());
+        btnExportScript.setOnClickListener(v -> exportCurrentScript());
+    }
+
+    private void showAdminLoginDialog() {
+        android.view.View dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_admin_login, null);
+        android.widget.EditText etUser = dialogView.findViewById(R.id.et_username);
+        android.widget.EditText etPass = dialogView.findViewById(R.id.et_password);
+
+        new AlertDialog.Builder(this)
+            .setTitle("Admin Login")
+            .setView(dialogView)
+            .setPositiveButton("Login", (dialog, which) -> {
+                String user = etUser.getText().toString();
+                String pass = etPass.getText().toString();
+                if ("admin".equals(user) && "preasx24".equals(pass)) {
+                    enableAdminMode();
+                } else {
+                    Toast.makeText(this, "Invalid Credentials", Toast.LENGTH_SHORT).show();
+                }
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+    private void enableAdminMode() {
+        btnRecord.setVisibility(android.view.View.VISIBLE);
+        btnStop.setVisibility(android.view.View.VISIBLE);
+        btnExportScript.setVisibility(android.view.View.VISIBLE);
+        Toast.makeText(this, "Admin Mode Enabled", Toast.LENGTH_SHORT).show();
+    }
+
+    private void exportCurrentScript() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String jsonString = prefs.getString(KEY_EVENTS, "[]");
+
+        android.content.Intent sendIntent = new android.content.Intent();
+        sendIntent.setAction(android.content.Intent.ACTION_SEND);
+        sendIntent.putExtra(android.content.Intent.EXTRA_TEXT, jsonString);
+        sendIntent.setType("text/plain");
+
+        android.content.Intent shareIntent = android.content.Intent.createChooser(sendIntent, "Export Navigation JSON");
+        startActivity(shareIntent);
     }
 
     private void startRecording() {
@@ -207,7 +307,16 @@ public class MainActivity extends Activity {
         replayStartTime = System.currentTimeMillis();
         lastExecutedIndex = -1;
 
-        mWebView.loadUrl(mainUrl);
+        // Ensure we are on the correct URL before injecting anything
+        if (!mWebView.getUrl().startsWith(mainUrl)) {
+            Log.d(TAG, "Not on login page, reloading...");
+            mWebView.loadUrl(mainUrl);
+            // The onPageFinished listener will trigger injectReplayer when done
+        } else {
+             // Already on page, force reload to be safe or just start?
+             // User requested "reload sounds good", so let's reload.
+             mWebView.loadUrl(mainUrl);
+        }
     }
 
     private void injectRecorder() {
@@ -347,16 +456,37 @@ public class MainActivity extends Activity {
             }
             reader.close();
 
+            String results = sb.toString();
             new AlertDialog.Builder(this)
                 .setTitle("Batch Results")
-                .setMessage(sb.length() > 0 ? sb.toString() : "No results yet.")
+                .setMessage(results.length() > 0 ? results : "No results yet.")
                 .setPositiveButton("OK", null)
                 .setNeutralButton("Clear", (d, w) -> deleteFile("batch_results.txt"))
+                .setNegativeButton("Share", (d, w) -> shareResults(results))
                 .show();
 
         } catch (IOException e) {
             Toast.makeText(this, "No results found.", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void shareResults(String results) {
+        if (results == null || results.isEmpty()) {
+            Toast.makeText(this, "Nothing to share", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        StringBuilder finalOutput = new StringBuilder();
+        finalOutput.append(results);
+        finalOutput.append("\n\nPOWERED BY DTECH\n");
+        finalOutput.append("@PREASX24");
+
+        android.content.Intent sendIntent = new android.content.Intent();
+        sendIntent.setAction(android.content.Intent.ACTION_SEND);
+        sendIntent.putExtra(android.content.Intent.EXTRA_TEXT, finalOutput.toString());
+        sendIntent.setType("text/plain");
+
+        startActivity(android.content.Intent.createChooser(sendIntent, "Share Results"));
     }
 
     private void moveToNext() {
