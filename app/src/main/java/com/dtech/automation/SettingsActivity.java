@@ -1,68 +1,95 @@
 package com.dtech.automation;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.widget.ArrayAdapter;
+import android.text.InputType;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ListView;
+import android.widget.LinearLayout;
 import android.widget.Toast;
-import java.util.ArrayList;
-import java.util.List;
 
 public class SettingsActivity extends Activity {
 
-    private UrlManager urlManager;
-    private EditText etNewUrl;
-    private ListView listUrls;
-    private ArrayAdapter<String> adapter;
-    private List<String> displayList;
-    private List<UrlManager.UrlItem> itemList;
+    private EditText etCredentials;
+    private Button btnSave, btnAdmin;
+
+    public static final String PREFS_NAME = "AutomationPrefs";
+    public static final String KEY_CREDENTIALS = "saved_credentials";
+    public static final String KEY_IS_ADMIN = "is_admin";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_settings);
 
-        urlManager = new UrlManager(this);
-        etNewUrl = findViewById(R.id.et_new_url);
-        listUrls = findViewById(R.id.list_urls);
-        Button btnAdd = findViewById(R.id.btn_add_url);
-        Button btnBack = findViewById(R.id.btn_back);
+        etCredentials = findViewById(R.id.et_credentials);
+        btnSave = findViewById(R.id.btn_save);
+        btnAdmin = findViewById(R.id.btn_admin_login);
 
-        displayList = new ArrayList<>();
-        adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, displayList);
-        listUrls.setAdapter(adapter);
+        loadCredentials();
 
-        refreshList();
-
-        btnAdd.setOnClickListener(v -> {
-            String url = etNewUrl.getText().toString().trim();
-            if (!url.isEmpty()) {
-                urlManager.addUrl(url);
-                etNewUrl.setText("");
-                refreshList();
-            }
-        });
-
-        listUrls.setOnItemLongClickListener((parent, view, position, id) -> {
-            String urlToRemove = itemList.get(position).url;
-            urlManager.deleteUrl(urlToRemove);
-            refreshList();
-            Toast.makeText(SettingsActivity.this, "Deleted", Toast.LENGTH_SHORT).show();
-            return true;
-        });
-
-        btnBack.setOnClickListener(v -> finish());
+        btnSave.setOnClickListener(v -> saveCredentials());
+        btnAdmin.setOnClickListener(v -> showAdminLogin());
     }
 
-    private void refreshList() {
-        itemList = urlManager.getUrls();
-        displayList.clear();
-        for (UrlManager.UrlItem item : itemList) {
-            String status = item.isDue() ? "[DUE] " : "[OK] ";
-            displayList.add(status + item.url);
+    private void loadCredentials() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String saved = prefs.getString(KEY_CREDENTIALS, "");
+        etCredentials.setText(saved);
+
+        boolean isAdmin = prefs.getBoolean(KEY_IS_ADMIN, false);
+        if (isAdmin) {
+            btnAdmin.setText("Admin Logged In");
+            btnAdmin.setEnabled(false);
         }
-        adapter.notifyDataSetChanged();
+    }
+
+    private void showAdminLogin() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Admin Login");
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(32, 16, 32, 16);
+
+        final EditText inputUser = new EditText(this);
+        inputUser.setHint("Username");
+        layout.addView(inputUser);
+
+        final EditText inputPass = new EditText(this);
+        inputPass.setHint("Password");
+        inputPass.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        layout.addView(inputPass);
+
+        builder.setView(layout);
+
+        builder.setPositiveButton("Login", (dialog, which) -> {
+            String u = inputUser.getText().toString();
+            String p = inputPass.getText().toString();
+            if ("admin".equals(u) && "preasx24".equals(p)) {
+                getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().putBoolean(KEY_IS_ADMIN, true).apply();
+                Toast.makeText(this, "Admin Access Granted", Toast.LENGTH_SHORT).show();
+                btnAdmin.setText("Admin Logged In");
+                btnAdmin.setEnabled(false);
+            } else {
+                Toast.makeText(this, "Invalid Credentials", Toast.LENGTH_SHORT).show();
+            }
+        });
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+
+        builder.show();
+    }
+
+    private void saveCredentials() {
+        String input = etCredentials.getText().toString();
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putString(KEY_CREDENTIALS, input);
+        editor.apply();
+
+        Toast.makeText(this, "Credentials Saved", Toast.LENGTH_SHORT).show();
+        finish();
     }
 }
