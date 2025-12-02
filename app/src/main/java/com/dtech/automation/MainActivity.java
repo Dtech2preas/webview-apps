@@ -68,6 +68,7 @@ public class MainActivity extends Activity {
 
     private static final String PREFS_NAME = "AutomationPrefs";
     private static final String KEY_EVENTS = "saved_events";
+    private static final String KEY_BATCH_INDEX = "batch_current_index";
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -308,8 +309,31 @@ public class MainActivity extends Activity {
         isRecording = false;
         isReplaying = true;
         isBatchRunning = true;
-        currentCredentialIndex = 0;
 
+        SharedPreferences autoPrefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        int savedIndex = autoPrefs.getInt(KEY_BATCH_INDEX, 0);
+
+        if (savedIndex > 0 && savedIndex < credentialList.size()) {
+            new AlertDialog.Builder(this)
+                .setTitle("Resume Batch?")
+                .setMessage("Resume from Account #" + (savedIndex + 1) + " or Start Over?")
+                .setPositiveButton("Resume", (d, w) -> {
+                    currentCredentialIndex = savedIndex;
+                    startBatchExecution();
+                })
+                .setNegativeButton("Start Over", (d, w) -> {
+                    currentCredentialIndex = 0;
+                    startBatchExecution();
+                })
+                .setCancelable(false)
+                .show();
+        } else {
+            currentCredentialIndex = 0;
+            startBatchExecution();
+        }
+    }
+
+    private void startBatchExecution() {
         btnPlay.setVisibility(android.view.View.GONE);
         btnStopBatch.setVisibility(android.view.View.VISIBLE);
 
@@ -335,6 +359,9 @@ public class MainActivity extends Activity {
         if (!isBatchRunning) return;
 
         if (currentCredentialIndex >= credentialList.size()) {
+            // Reset progress on completion
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().putInt(KEY_BATCH_INDEX, 0).apply();
+
             stopBatch(); // Reset UI state
             runOnUiThread(() -> new AlertDialog.Builder(MainActivity.this)
                 .setTitle("Batch Complete")
@@ -343,6 +370,9 @@ public class MainActivity extends Activity {
                 .show());
             return;
         }
+
+        // Save progress
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().putInt(KEY_BATCH_INDEX, currentCredentialIndex).apply();
 
         String currentPair = credentialList.get(currentCredentialIndex);
         Log.d(TAG, "Processing: " + currentPair);
@@ -662,7 +692,7 @@ public class MainActivity extends Activity {
     private void moveToNext() {
         currentCredentialIndex++;
         nextCredentialRunnable = this::processNextCredential;
-        batchHandler.postDelayed(nextCredentialRunnable, 1500);
+        batchHandler.postDelayed(nextCredentialRunnable, 10000);
     }
 
     private void saveSessionToPrefs() {
