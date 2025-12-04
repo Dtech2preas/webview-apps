@@ -41,6 +41,7 @@
             type: type,
             selector: getSelector(target),
             time: Date.now() - window.recordingStartTime,
+            url: window.location.href, // Added URL logging
             value: value
         };
 
