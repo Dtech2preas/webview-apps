@@ -450,21 +450,27 @@ public class MainActivity extends Activity {
 
         // Start checking for results after the estimated replay duration
         long replayDuration = 0;
+        String targetSuccessUrl = "";
         if (!currentSessionEvents.isEmpty()) {
             try {
                 JSONObject last = currentSessionEvents.get(currentSessionEvents.size() - 1);
                 replayDuration = last.getLong("time");
+                if (last.has("url")) {
+                    targetSuccessUrl = last.getString("url");
+                }
             } catch (JSONException e) {}
         }
 
+        final String finalTargetUrl = targetSuccessUrl;
+
         // Define the verification runnable
-        verificationRunnable = this::checkVerificationStatus;
+        verificationRunnable = () -> checkVerificationStatus(finalTargetUrl);
         // Start verification almost immediately (1s delay) to catch early success/failure
         // We will keep checking periodically until MAX_VERIFICATION_ATTEMPTS or success
         batchHandler.postDelayed(verificationRunnable, 1000);
     }
 
-    private void checkVerificationStatus() {
+    private void checkVerificationStatus(String targetUrl) {
         if (!isBatchRunning) return;
 
         if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
@@ -475,7 +481,10 @@ public class MainActivity extends Activity {
         verificationAttempts++;
 
         String js = readAssetFile("verifier.js");
-        mWebView.evaluateJavascript(js, value -> {
+        // Inject the target URL variable before running verifier
+        String injection = "window.targetSuccessUrl = '" + targetUrl + "'; ";
+
+        mWebView.evaluateJavascript(injection + js, value -> {
             if (!isBatchRunning) return; // Stop if batch was stopped during eval
 
             if (value != null && value.length() > 2) {
@@ -497,21 +506,51 @@ public class MainActivity extends Activity {
                          moveToNext();
                      } else if ("rate_limit".equals(status)) {
                          handleRateLimit();
+                     } else if ("challenge".equals(status)) {
+                         handleChallenge();
                      } else {
                          // Still pending
                          Log.d(TAG, "Verification pending: " + res.optString("detail"));
-                         verificationRunnable = this::checkVerificationStatus;
+                         verificationRunnable = () -> checkVerificationStatus(targetUrl);
                          batchHandler.postDelayed(verificationRunnable, 2000);
                      }
                  } catch (JSONException e) {
                      Log.e(TAG, "Error parsing verification result: " + value, e);
-                     verificationRunnable = this::checkVerificationStatus;
+                     verificationRunnable = () -> checkVerificationStatus(targetUrl);
                      batchHandler.postDelayed(verificationRunnable, 2000);
                  }
             } else {
-                verificationRunnable = this::checkVerificationStatus;
+                verificationRunnable = () -> checkVerificationStatus(targetUrl);
                 batchHandler.postDelayed(verificationRunnable, 2000);
             }
+        });
+    }
+
+    private void handleChallenge() {
+        Log.w(TAG, "Challenge Detected! Pausing...");
+        if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
+
+        runOnUiThread(() -> {
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Challenge Detected")
+                .setMessage("Please solve the CAPTCHA or Challenge manually.\nThe script is paused.")
+                .setCancelable(false)
+                .setPositiveButton("I Solved It", (d, w) -> {
+                     // Resume verification checks immediately
+                     Toast.makeText(this, "Resuming...", Toast.LENGTH_SHORT).show();
+                     verificationAttempts = 0; // Reset attempts to give time to verify
+                     // Re-calculate target url logic or just resume checking
+                     String targetSuccessUrl = "";
+                     if (!currentSessionEvents.isEmpty()) {
+                        try {
+                            JSONObject last = currentSessionEvents.get(currentSessionEvents.size() - 1);
+                            if (last.has("url")) targetSuccessUrl = last.getString("url");
+                        } catch (JSONException e) {}
+                     }
+                     checkVerificationStatus(targetSuccessUrl);
+                })
+                .create();
+            dialog.show();
         });
     }
 
