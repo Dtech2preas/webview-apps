@@ -358,6 +358,10 @@ public class MainActivity extends Activity {
     private void processNextCredential() {
         if (!isBatchRunning) return;
 
+        // Explicitly clear any pending handlers to prevent overlaps
+        if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
+        if (nextCredentialRunnable != null) batchHandler.removeCallbacks(nextCredentialRunnable);
+
         if (currentCredentialIndex >= credentialList.size()) {
             // Reset progress on completion
             getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().putInt(KEY_BATCH_INDEX, 0).apply();
@@ -377,8 +381,7 @@ public class MainActivity extends Activity {
         String currentPair = credentialList.get(currentCredentialIndex);
         Log.d(TAG, "Processing: " + currentPair);
 
-        // Cancel any lingering callbacks
-        if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
+        final int targetIndex = currentCredentialIndex;
 
         // Robust Cookie Clearing
         android.webkit.CookieManager.getInstance().removeAllCookies(value -> {
@@ -389,7 +392,7 @@ public class MainActivity extends Activity {
 
             // Wait a bit to ensure cleanup is propagated and then load URL
             batchHandler.postDelayed(() -> {
-                 if (!isBatchRunning) return;
+                 if (!isBatchRunning || targetIndex != currentCredentialIndex) return;
                  replayStartTime = System.currentTimeMillis();
                  lastExecutedIndex = -1;
 
@@ -462,20 +465,26 @@ public class MainActivity extends Activity {
         }
 
         final String finalTargetUrl = targetSuccessUrl;
+        final int targetIndex = currentCredentialIndex;
 
         // Define the verification runnable
-        verificationRunnable = () -> checkVerificationStatus(finalTargetUrl);
+        verificationRunnable = () -> checkVerificationStatus(finalTargetUrl, targetIndex);
         // Start verification almost immediately (1s delay) to catch early success/failure
         // We will keep checking periodically until MAX_VERIFICATION_ATTEMPTS or success
         batchHandler.postDelayed(verificationRunnable, 1000);
     }
 
-    private void checkVerificationStatus(String targetUrl) {
+    private void checkVerificationStatus(String targetUrl, int targetIndex) {
         if (!isBatchRunning) return;
+        // Strictly check if we are still on the same account
+        if (targetIndex != currentCredentialIndex) {
+            Log.w(TAG, "Verification aborted: Index mismatch (Target: " + targetIndex + ", Current: " + currentCredentialIndex + ")");
+            return;
+        }
 
         if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
-            logResult(false, "Timeout waiting for result");
-            moveToNext();
+            logResult(false, "Timeout waiting for result", targetIndex);
+            moveToNext(targetIndex);
             return;
         }
         verificationAttempts++;
@@ -486,6 +495,7 @@ public class MainActivity extends Activity {
 
         mWebView.evaluateJavascript(injection + js, value -> {
             if (!isBatchRunning) return; // Stop if batch was stopped during eval
+            if (targetIndex != currentCredentialIndex) return; // Double check
 
             if (value != null && value.length() > 2) {
                  String jsonStr = value;
@@ -499,34 +509,36 @@ public class MainActivity extends Activity {
                      String status = res.getString("status");
 
                      if ("success".equals(status)) {
-                         logResult(true, res.optString("detail"));
-                         moveToNext();
+                         logResult(true, res.optString("detail"), targetIndex);
+                         moveToNext(targetIndex);
                      } else if ("failure".equals(status)) {
-                         logResult(false, res.optString("detail"));
-                         moveToNext();
+                         logResult(false, res.optString("detail"), targetIndex);
+                         moveToNext(targetIndex);
                      } else if ("rate_limit".equals(status)) {
                          handleRateLimit();
                      } else if ("challenge".equals(status)) {
-                         handleChallenge();
+                         handleChallenge(targetIndex, targetUrl);
                      } else {
                          // Still pending
                          Log.d(TAG, "Verification pending: " + res.optString("detail"));
-                         verificationRunnable = () -> checkVerificationStatus(targetUrl);
+                         verificationRunnable = () -> checkVerificationStatus(targetUrl, targetIndex);
                          batchHandler.postDelayed(verificationRunnable, 2000);
                      }
                  } catch (JSONException e) {
                      Log.e(TAG, "Error parsing verification result: " + value, e);
-                     verificationRunnable = () -> checkVerificationStatus(targetUrl);
+                     verificationRunnable = () -> checkVerificationStatus(targetUrl, targetIndex);
                      batchHandler.postDelayed(verificationRunnable, 2000);
                  }
             } else {
-                verificationRunnable = () -> checkVerificationStatus(targetUrl);
+                verificationRunnable = () -> checkVerificationStatus(targetUrl, targetIndex);
                 batchHandler.postDelayed(verificationRunnable, 2000);
             }
         });
     }
 
-    private void handleChallenge() {
+    private void handleChallenge(int targetIndex, String targetUrl) {
+        if (targetIndex != currentCredentialIndex) return;
+
         Log.w(TAG, "Challenge Detected! Pausing...");
         if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
 
@@ -538,16 +550,8 @@ public class MainActivity extends Activity {
                 .setPositiveButton("I Solved It", (d, w) -> {
                      // Resume verification checks immediately
                      Toast.makeText(this, "Resuming...", Toast.LENGTH_SHORT).show();
-                     verificationAttempts = 0; // Reset attempts to give time to verify
-                     // Re-calculate target url logic or just resume checking
-                     String targetSuccessUrl = "";
-                     if (!currentSessionEvents.isEmpty()) {
-                        try {
-                            JSONObject last = currentSessionEvents.get(currentSessionEvents.size() - 1);
-                            if (last.has("url")) targetSuccessUrl = last.getString("url");
-                        } catch (JSONException e) {}
-                     }
-                     checkVerificationStatus(targetSuccessUrl);
+                     verificationAttempts = 0;
+                     checkVerificationStatus(targetUrl, targetIndex);
                 })
                 .create();
             dialog.show();
@@ -599,13 +603,18 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void logResult(boolean success, String detail) {
-        String cred = credentialList.get(currentCredentialIndex);
+    private void logResult(boolean success, String detail, int index) {
+        if (index >= credentialList.size()) return;
+
+        String cred = credentialList.get(index);
         String status = success ? "SUCCESS" : "FAILURE";
         String msg = status + " " + cred + " (powered by DTECH)";
-        Log.i(TAG, "Batch Result: " + msg);
+        Log.i(TAG, "Batch Result (" + index + "): " + msg);
         runOnUiThread(() -> Toast.makeText(this, msg, Toast.LENGTH_SHORT).show());
         saveResultToFile(msg);
+
+        // Stop checking this account immediately
+        if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
     }
 
     private void saveResultToFile(String resultLine) {
@@ -728,9 +737,12 @@ public class MainActivity extends Activity {
         adCheckHandler.removeCallbacks(adCheckRunnable);
     }
 
-    private void moveToNext() {
+    private void moveToNext(int completedIndex) {
+        if (completedIndex != currentCredentialIndex) return;
+
         currentCredentialIndex++;
         nextCredentialRunnable = this::processNextCredential;
+        // Keep the 10 second delay before the next account starts, as requested
         batchHandler.postDelayed(nextCredentialRunnable, 10000);
     }
 
