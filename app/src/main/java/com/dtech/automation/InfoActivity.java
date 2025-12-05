@@ -25,8 +25,12 @@ public class InfoActivity extends Activity {
                 "<b>BEST PRACTICES:</b><br/>" +
                 "It is best to run this process at night while you sleep.<br/>" +
                 "1. Connect your charger.<br/>" +
-                "2. Enable <b>Developer Options</b> on your phone.<br/>" +
-                "3. Enable the <b>'Stay Awake'</b> setting (Screen will never sleep while charging).<br/><br/>" +
+                "2. <b>Enable Developer Options:</b><br/>" +
+                "   - Go to Settings > About Phone.<br/>" +
+                "   - Tap 'Build Number' 7 times until it says 'You are a developer'.<br/>" +
+                "3. <b>Enable Stay Awake:</b><br/>" +
+                "   - Go to Settings > System > Developer Options.<br/>" +
+                "   - Find and Toggle 'Stay Awake' (Screen will never sleep while charging).<br/><br/>" +
                 "<b>HOW TO USE:</b><br/><br/>" +
                 "1. Open App and go to <b>Settings</b>.<br/>" +
                 "2. Input your <b>email:password</b> pairs (one per line).<br/>" +
