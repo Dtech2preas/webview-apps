@@ -6,8 +6,10 @@
     var rawBodyText = document.body.innerText || "";
     var bodyText = rawBodyText.toLowerCase();
 
-    // Injected variable from Java
+    // Injected variables from Java
     var targetSuccessUrl = window.targetSuccessUrl || "";
+    // failureKeywords is expected to be a JSON array of strings, injected as window.failureKeywords
+    var failureKeywords = window.failureKeywords || [];
 
     // CHALLENGE DETECT
     if (bodyText.includes("challenge") ||
@@ -17,6 +19,17 @@
         return JSON.stringify({ status: "challenge", detail: "Challenge detected" });
     }
 
+    // FAILURE KEYWORDS CHECK (High Priority)
+    // If specific keywords were recorded, use them
+    if (failureKeywords && failureKeywords.length > 0) {
+        for (var i = 0; i < failureKeywords.length; i++) {
+            var kw = failureKeywords[i].toLowerCase();
+            if (bodyText.includes(kw)) {
+                 return JSON.stringify({ status: "failure", detail: "Failure keyword found: " + kw });
+            }
+        }
+    }
+
     // STRICT SUCCESS CHECK
     // If a target URL is provided, we ONLY accept that as success
     if (targetSuccessUrl && targetSuccessUrl.length > 5) {
@@ -24,17 +37,13 @@
         var cleanCurrent = currentUrl.replace(/\/$/, "").toLowerCase();
         var cleanTarget = targetSuccessUrl.replace(/\/$/, "").toLowerCase();
 
-        if (cleanCurrent === cleanTarget) {
+        // Check for exact match or if current URL starts with target (e.g. /dashboard -> /dashboard/home)
+        if (cleanCurrent === cleanTarget || cleanCurrent.startsWith(cleanTarget)) {
             return JSON.stringify({ status: "success", detail: "Target URL reached" });
-        }
-    } else {
-        // Fallback to old heuristic if no target provided (backward compatibility)
-        if (!currentUrl.includes("/login") && !currentUrl.includes("challenge")) {
-             return JSON.stringify({ status: "success", detail: "Redirected away from login" });
         }
     }
 
-    // Rate Limit Checks
+    // Rate Limit Checks (Generic)
     if (bodyText.includes("limit") && bodyText.includes("reached")) {
         return JSON.stringify({ status: "rate_limit", detail: "Rate limit detected (limit reached)" });
     }
@@ -43,44 +52,13 @@
         return JSON.stringify({ status: "rate_limit", detail: "Rate limit detected (generic)" });
     }
 
-    // Failure Checks
+    // GENERIC FALLBACKS (If no specific keywords matched)
     if (bodyText.includes("incorrect")) {
-        return JSON.stringify({ status: "failure", detail: "Incorrect credential detected" });
+        return JSON.stringify({ status: "failure", detail: "Incorrect credential detected (generic)" });
     }
     if ((bodyText.includes("email") || bodyText.includes("password")) &&
         (bodyText.includes("invalid") || bodyText.includes("error"))) {
-        return JSON.stringify({ status: "failure", detail: "Login error detected" });
-    }
-
-    // Check for "Red Popup"
-    var allElements = document.getElementsByTagName("*");
-    for (var i = 0; i < allElements.length; i++) {
-        var el = allElements[i];
-        var rect = el.getBoundingClientRect();
-        if (rect.top < 300 && rect.height > 0 && rect.width > 0) {
-            var style = window.getComputedStyle(el);
-            var bg = style.backgroundColor;
-            var rgbMatch = bg.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-            if (rgbMatch) {
-                var r = parseInt(rgbMatch[1]);
-                var g = parseInt(rgbMatch[2]);
-                var b = parseInt(rgbMatch[3]);
-                if (r > 150 && g < 100 && b < 100) {
-                     var text = el.innerText ? el.innerText.trim().toLowerCase() : "";
-                     if (text.length > 0) {
-                         if (text.includes("limit") || text.includes("reached") || text.includes("requests")) {
-                             return JSON.stringify({ status: "rate_limit", detail: "Rate limit popup: " + text.substring(0, 20) });
-                         }
-                         if (text.includes("incorrect") || text.includes("invalid") || text.includes("error")) {
-                             return JSON.stringify({ status: "failure", detail: "Error popup: " + text.substring(0, 20) });
-                         }
-                         if (text.split(" ").length > 2) {
-                             return JSON.stringify({ status: "failure", detail: "Red warning popup: " + text.substring(0, 20) });
-                         }
-                     }
-                }
-            }
-        }
+        return JSON.stringify({ status: "failure", detail: "Login error detected (generic)" });
     }
 
     return JSON.stringify({ status: "pending", detail: "Waiting for result..." });
