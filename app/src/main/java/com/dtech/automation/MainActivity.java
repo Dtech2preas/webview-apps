@@ -60,6 +60,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     private List<String> credentialList = new ArrayList<>();
     private int currentCredentialIndex = 0;
     private boolean isBatchRunning = false;
+    private boolean isWaitingForNext = false;
     private int verificationAttempts = 0;
     private static final int MAX_VERIFICATION_ATTEMPTS = 20;
 
@@ -165,6 +166,8 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+
+                if (isWaitingForNext) return;
 
                 if (recordingMode != RECORD_MODE_NONE) {
                     injectRecorder();
@@ -367,6 +370,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     private void stopBatch() {
         isBatchRunning = false;
         isReplaying = false;
+        isWaitingForNext = false;
 
         if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
         if (nextCredentialRunnable != null) batchHandler.removeCallbacks(nextCredentialRunnable);
@@ -407,6 +411,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
 
             batchHandler.postDelayed(() -> {
                  if (!isBatchRunning || targetIndex != currentCredentialIndex) return;
+                 isWaitingForNext = false;
                  replayStartTime = System.currentTimeMillis();
                  lastExecutedIndex = -1;
                  mWebView.loadUrl(currentService.getLoginUrl());
@@ -458,6 +463,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     private void checkVerificationStatus(int targetIndex) {
         if (!isBatchRunning) return;
         if (targetIndex != currentCredentialIndex) return;
+        if (isWaitingForNext) return;
 
         if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
             logResult(false, "Timeout", targetIndex);
@@ -654,6 +660,8 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
 
     private void moveToNext(int idx) {
         if (idx != currentCredentialIndex) return;
+        isWaitingForNext = true;
+        mWebView.stopLoading();
         currentCredentialIndex++;
         nextCredentialRunnable = this::processNextCredential;
         batchHandler.postDelayed(nextCredentialRunnable, 10000);
