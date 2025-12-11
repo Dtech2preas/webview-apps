@@ -45,6 +45,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     private android.widget.RelativeLayout overlayScanner;
     private android.view.View draggableBox;
     private Button btnScanCatch, btnScanFinish, btnScanCancel;
+    private Button btnScanSizeInc, btnScanSizeDec;
     private float dX, dY;
     private List<ServiceRepository.ExtractionPoint> tempExtractionPoints = new ArrayList<>();
 
@@ -69,6 +70,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     private int currentCredentialIndex = 0;
     private boolean isBatchRunning = false;
     private boolean isWaitingForNext = false;
+    private boolean useCoordinateMode = false;
     private int verificationAttempts = 0;
     private static final int MAX_VERIFICATION_ATTEMPTS = 20;
 
@@ -119,6 +121,25 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         btnScanCatch = findViewById(R.id.btn_scan_catch);
         btnScanFinish = findViewById(R.id.btn_scan_finish);
         btnScanCancel = findViewById(R.id.btn_scan_cancel);
+        btnScanSizeInc = findViewById(R.id.btn_scan_size_inc);
+        btnScanSizeDec = findViewById(R.id.btn_scan_size_dec);
+
+        // Resize Logic
+        btnScanSizeInc.setOnClickListener(v -> {
+            android.view.ViewGroup.LayoutParams params = draggableBox.getLayoutParams();
+            params.width += 20;
+            params.height += 20;
+            draggableBox.setLayoutParams(params);
+        });
+
+        btnScanSizeDec.setOnClickListener(v -> {
+            android.view.ViewGroup.LayoutParams params = draggableBox.getLayoutParams();
+            if (params.width > 50 && params.height > 50) {
+                params.width -= 20;
+                params.height -= 20;
+                draggableBox.setLayoutParams(params);
+            }
+        });
 
         // Draggable Logic
         draggableBox.setOnTouchListener((view, event) -> {
@@ -619,6 +640,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
 
         isReplaying = true;
         isBatchRunning = true;
+        useCoordinateMode = false; // Default to smart logic
 
         // Check for resume
         SharedPreferences autoPrefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
@@ -649,7 +671,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         btnStopBatch.setVisibility(android.view.View.VISIBLE);
         btnRecord.setVisibility(android.view.View.GONE);
 
-        Toast.makeText(this, "Starting Batch: " + currentService.getName(), Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Starting Batch: " + currentService.getName() + (useCoordinateMode ? " (Coords)" : ""), Toast.LENGTH_SHORT).show();
         processNextCredential();
     }
 
@@ -657,6 +679,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         isBatchRunning = false;
         isReplaying = false;
         isWaitingForNext = false;
+        useCoordinateMode = false;
 
         if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
         if (nextCredentialRunnable != null) batchHandler.removeCallbacks(nextCredentialRunnable);
@@ -736,7 +759,8 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
                        "window.lastExecutedIndex = " + lastExecutedIndex + "; " +
                        "var overrides = " + overrides.toString() + "; " +
                        "window.overrideEmail = overrides.email; " +
-                       "window.overridePassword = overrides.password;";
+                       "window.overridePassword = overrides.password;" +
+                       "window.coordinateMode = " + useCoordinateMode + ";";
 
         mWebView.evaluateJavascript(setup + js, null);
 
@@ -899,6 +923,32 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         saveResultToFile(msg);
 
         if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
+
+        // Special Check for First Account (Index 0)
+        if (index == 0 && !useCoordinateMode) {
+             // Pause and ask user
+             runOnUiThread(() -> {
+                 new AlertDialog.Builder(this)
+                     .setTitle("First Account Check")
+                     .setMessage("Account #1 processed.\n\nWas the login accurate and successful?")
+                     .setPositiveButton("Yes, Continue", (d, w) -> {
+                         // Proceed
+                         moveToNext(index);
+                     })
+                     .setNegativeButton("No, Try Coordinates", (d, w) -> {
+                         // Switch mode and restart from 0
+                         Toast.makeText(this, "Switching to Coordinate Mode...", Toast.LENGTH_SHORT).show();
+                         useCoordinateMode = true;
+                         currentCredentialIndex = 0;
+                         // Clear logs for retry? Maybe just append.
+                         processNextCredential();
+                     })
+                     .setCancelable(false)
+                     .show();
+             });
+             // Return early to prevent auto-move
+             return;
+        }
     }
 
     private void saveResultToFile(String resultLine) {

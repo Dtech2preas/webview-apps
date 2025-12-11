@@ -37,7 +37,7 @@
         return path.join(" > ");
     }
 
-    function recordEvent(type, target, value) {
+    function recordEvent(type, target, value, extra) {
         var event = {
             type: type,
             selector: getSelector(target),
@@ -56,6 +56,13 @@
             href: (target.href || ""),
             inputType: target.type || "" // for input elements
         };
+
+        // Merge extra properties (like coordinates)
+        if (extra) {
+            for (var key in extra) {
+                event[key] = extra[key];
+            }
+        }
 
         // Send directly to Java to persist across page loads
         if (window.Android && window.Android.recordEvent) {
@@ -86,7 +93,10 @@
         }
 
         // Don't record clicks on recorder UI if we ever add one
-        recordEvent('click', e.target, null);
+        recordEvent('click', e.target, null, {
+            x: e.pageX,
+            y: e.pageY
+        });
     }, true);
 
     // --- Success Analysis & Selection Mode ---
