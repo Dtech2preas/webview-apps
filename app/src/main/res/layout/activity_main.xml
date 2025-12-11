@@ -17,11 +17,87 @@
         android:padding="8dp"
         android:background="#000000"/>
 
-    <WebView
-        android:id="@+id/activity_main_webview"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="0.8" />
+        android:layout_weight="0.8">
+
+        <WebView
+            android:id="@+id/activity_main_webview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- Scanner Overlay -->
+        <RelativeLayout
+            android:id="@+id/overlay_scanner"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#10000000"
+            android:visibility="gone">
+
+            <!-- Draggable Box -->
+            <View
+                android:id="@+id/draggable_box"
+                android:layout_width="200dp"
+                android:layout_height="100dp"
+                android:layout_centerInParent="true"
+                android:background="@drawable/scanner_box_border" />
+
+            <!-- Hint Text -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_above="@id/scanner_controls"
+                android:layout_centerHorizontal="true"
+                android:text="Drag the box over the element -> Press Catch"
+                android:textColor="#FFFFFF"
+                android:background="#80000000"
+                android:padding="4dp"
+                android:layout_marginBottom="8dp"/>
+
+            <!-- Controls -->
+            <LinearLayout
+                android:id="@+id/scanner_controls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignParentBottom="true"
+                android:orientation="horizontal"
+                android:background="#CC000000"
+                android:padding="8dp">
+
+                <Button
+                    android:id="@+id/btn_scan_catch"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="CATCH"
+                    android:backgroundTint="#FF0000"
+                    android:textColor="#FFFFFF" />
+
+                <Button
+                    android:id="@+id/btn_scan_finish"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="FINISH"
+                    android:backgroundTint="#4CAF50"
+                    android:textColor="#FFFFFF"
+                    android:layout_marginStart="8dp"/>
+
+                <Button
+                    android:id="@+id/btn_scan_cancel"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="CANCEL"
+                    android:backgroundTint="#757575"
+                    android:textColor="#FFFFFF"
+                    android:layout_marginStart="8dp"/>
+            </LinearLayout>
+
+        </RelativeLayout>
+
+    </FrameLayout>
 
     <LinearLayout
         android:layout_width="match_parent"

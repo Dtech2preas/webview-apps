@@ -41,6 +41,13 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     private TextView txtServiceName;
     private Button btnRecord, btnStop, btnPlay, btnStopBatch, btnSettings, btnResults, btnInfo, btnAdSystem, btnChangeService;
 
+    // Scanner UI
+    private android.widget.RelativeLayout overlayScanner;
+    private android.view.View draggableBox;
+    private Button btnScanCatch, btnScanFinish, btnScanCancel;
+    private float dX, dY;
+    private List<ServiceRepository.ExtractionPoint> tempExtractionPoints = new ArrayList<>();
+
     // --- Recording State Machine ---
     private static final int RECORD_MODE_NONE = 0;
     private static final int RECORD_MODE_SUCCESS = 1;
@@ -99,9 +106,181 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         serviceRepo = new ServiceRepository(this);
         setupWebView();
         setupButtons();
+        setupScannerUI();
 
         loadLastService();
         startAdChecker();
+    }
+
+    private void setupScannerUI() {
+        overlayScanner = findViewById(R.id.overlay_scanner);
+        draggableBox = findViewById(R.id.draggable_box);
+        btnScanCatch = findViewById(R.id.btn_scan_catch);
+        btnScanFinish = findViewById(R.id.btn_scan_finish);
+        btnScanCancel = findViewById(R.id.btn_scan_cancel);
+
+        // Draggable Logic
+        draggableBox.setOnTouchListener((view, event) -> {
+            switch (event.getAction()) {
+                case android.view.MotionEvent.ACTION_DOWN:
+                    dX = view.getX() - event.getRawX();
+                    dY = view.getY() - event.getRawY();
+                    break;
+                case android.view.MotionEvent.ACTION_MOVE:
+                    view.animate()
+                        .x(event.getRawX() + dX)
+                        .y(event.getRawY() + dY)
+                        .setDuration(0)
+                        .start();
+                    break;
+                default:
+                    return false;
+            }
+            return true;
+        });
+
+        btnScanCatch.setOnClickListener(v -> {
+            // Calculate center of box relative to WebView
+            int[] webViewLoc = new int[2];
+            mWebView.getLocationOnScreen(webViewLoc);
+
+            int[] boxLoc = new int[2];
+            draggableBox.getLocationOnScreen(boxLoc);
+
+            // Center of box
+            float centerX = boxLoc[0] + (draggableBox.getWidth() / 2f);
+            float centerY = boxLoc[1] + (draggableBox.getHeight() / 2f);
+
+            // Relative to WebView
+            float relX = centerX - webViewLoc[0];
+            float relY = centerY - webViewLoc[1];
+
+            // Convert to density pixels if needed, or JS pixels
+            float density = getResources().getDisplayMetrics().density;
+            float jsX = relX / density;
+            float jsY = relY / density;
+
+            // Better approach: inject a helper function
+            String helper = "(function(x, y) {" +
+                            "  var el = document.elementFromPoint(x, y);" +
+                            "  if (!el) return null;" +
+                            "  var getSelector = function(el) {" +
+                            "    if (el.id) return '#' + el.id;" +
+                            "    var path = [];" +
+                            "    var current = el;" +
+                            "    while (current && current.nodeType === 1) {" +
+                            "       var selector = current.nodeName.toLowerCase();" +
+                            "       if (current.id) {" +
+                            "           selector = '#' + current.id;" +
+                            "           path.unshift(selector);" +
+                            "           break;" +
+                            "       } else {" +
+                            "           var sib = current, nth = 1;" +
+                            "           while (sib = sib.previousElementSibling) {" +
+                            "               if (sib.nodeName.toLowerCase() == selector) nth++;" +
+                            "           }" +
+                            "           if (nth != 1) selector += ':nth-of-type('+nth+')';" +
+                            "       }" +
+                            "       path.unshift(selector);" +
+                            "       current = current.parentNode;" +
+                            "    }" +
+                            "    return path.join(' > ');" +
+                            "  };" +
+                            "  return JSON.stringify({ selector: getSelector(el), text: el.innerText });" +
+                            "})(" + jsX + ", " + jsY + ")";
+
+            mWebView.evaluateJavascript(helper, val -> {
+                if (val != null && val.length() > 2) {
+                     String jsonStr = val;
+                     if (jsonStr.startsWith("\"") && jsonStr.endsWith("\"")) {
+                         jsonStr = jsonStr.substring(1, jsonStr.length() - 1).replace("\\\"", "\"");
+                     }
+                     try {
+                         JSONObject obj = new JSONObject(jsonStr);
+                         String selector = obj.getString("selector");
+                         String text = obj.optString("text", "");
+                         showLabelDialog(selector, text);
+                     } catch (Exception e) {
+                         Toast.makeText(this, "Failed to catch element", Toast.LENGTH_SHORT).show();
+                     }
+                }
+            });
+        });
+
+        btnScanFinish.setOnClickListener(v -> {
+            if (currentService != null) {
+                currentService.setExtractionPoints(new ArrayList<>(tempExtractionPoints));
+                serviceRepo.addOrUpdateService(currentService);
+                Toast.makeText(this, "Extraction Points Saved!", Toast.LENGTH_SHORT).show();
+            }
+            overlayScanner.setVisibility(android.view.View.GONE);
+            startRecordingPhase2();
+        });
+
+        btnScanCancel.setOnClickListener(v -> {
+            overlayScanner.setVisibility(android.view.View.GONE);
+            startRecordingPhase2();
+        });
+    }
+
+    private void showLabelDialog(String selector, String text) {
+        final android.widget.EditText input = new android.widget.EditText(this);
+        input.setHint("Label (e.g. Balance)");
+
+        boolean hasDigits = text.matches(".*\\d.*");
+
+        // Smart Regex Generation
+        String pattern = "";
+        if (hasDigits) {
+             // Replace any sequence of digits with \d+ and escape potentially regex-sensitive chars (simple)
+             // We will take a simple approach: Escape special chars, then unescape our \d+ placeholder
+             // Actually, easier:
+             // 1. Split text by digits
+             // 2. Escape the parts
+             // 3. Join with \d+
+             // But wait, "Balance: 50.00" -> "Balance: \d+.\d+"
+             // JS Regex: /Balance: \d+\.\d+/
+
+             // Implementation:
+             // replace all digit sequences with the token "___NUM___"
+             String temp = text.replaceAll("\\d+", "___NUM___");
+             // Escape the string for Regex (quote it)
+             // Since Java doesn't have a built-in Regex.escape for Javascript, we do basic escaping
+             String escaped = temp.replace("\\", "\\\\")
+                                  .replace("^", "\\^")
+                                  .replace("$", "\\$")
+                                  .replace(".", "\\.")
+                                  .replace("|", "\\|")
+                                  .replace("?", "\\?")
+                                  .replace("*", "\\*")
+                                  .replace("+", "\\+")
+                                  .replace("(", "\\(")
+                                  .replace(")", "\\)")
+                                  .replace("[", "\\[")
+                                  .replace("{", "\\{");
+
+             // Restore token to Javascript Regex \d+
+             pattern = escaped.replace("___NUM___", "\\d+");
+        }
+
+        String msg = "Captured: " + (text.length() > 20 ? text.substring(0, 20) + "..." : text) + "\n\n" +
+                     (hasDigits ? "Detected Numbers -> Smart Pattern Generated" : "Static Content");
+
+        final String finalPattern = pattern;
+
+        new AlertDialog.Builder(this)
+            .setTitle("Label this Element")
+            .setMessage(msg)
+            .setView(input)
+            .setPositiveButton("Save", (d, w) -> {
+                String label = input.getText().toString().trim();
+                if (label.isEmpty()) label = "Data";
+
+                tempExtractionPoints.add(new ServiceRepository.ExtractionPoint(selector, label, hasDigits, finalPattern));
+                Toast.makeText(this, "Added: " + label, Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
     }
 
     private void loadLastService() {
@@ -242,22 +421,20 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
                 currentService.setSuccessSelector(null); // Clear selector if using keywords
                 serviceRepo.addOrUpdateService(currentService);
 
-                recordingMode = RECORD_MODE_NONE;
-                btnStop.setVisibility(android.view.View.GONE);
-                startRecordingPhase2();
+                askToExtractData();
             })
-            .setNegativeButton("No, Select Manual Element", (d, w) -> {
-                 enableManualSelectionMode();
+            .setNegativeButton("No, Open Scanner", (d, w) -> {
+                 openScannerOverlay();
             })
             .setCancelable(false)
             .show();
     }
 
-    private void showManualSelectionDialog(String reason) {
+    private void showPostSuccessDialog(String reason) {
         new AlertDialog.Builder(this)
-             .setTitle("Manual Verification Required")
-             .setMessage(reason + "\n\nPlease click on an element that proves you are logged in (e.g. Username, Balance, Deposit button).")
-             .setPositiveButton("Select Element", (d, w) -> enableManualSelectionMode())
+             .setTitle("Success Verification")
+             .setMessage(reason + "\n\nUse the Scanner to manually select Success Indicators and Data (e.g. Balance).")
+             .setPositiveButton("Open Scanner", (d, w) -> openScannerOverlay())
              .setNegativeButton("Skip (Risky)", (d, w) -> {
                  // Fallback to just URL check (risky)
                  currentService.setSuccessKeywords(new ArrayList<>());
@@ -270,6 +447,25 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
              })
              .setCancelable(false)
              .show();
+    }
+
+    private void askToExtractData() {
+        new AlertDialog.Builder(this)
+            .setTitle("Data Extraction")
+            .setMessage("Do you want to extract data (e.g. Balance, Status) from the page?")
+            .setPositiveButton("Yes, Open Scanner", (d, w) -> openScannerOverlay())
+            .setNegativeButton("No, Continue", (d, w) -> {
+                recordingMode = RECORD_MODE_NONE;
+                btnStop.setVisibility(android.view.View.GONE);
+                startRecordingPhase2();
+            })
+            .show();
+    }
+
+    private void openScannerOverlay() {
+        tempExtractionPoints.clear();
+        overlayScanner.setVisibility(android.view.View.VISIBLE);
+        Toast.makeText(this, "Scanner Mode Active", Toast.LENGTH_SHORT).show();
     }
 
     private void enableManualSelectionMode() {
@@ -328,7 +524,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
 
                  if (foundKeywords.isEmpty()) {
                      // No auto-keywords found. Ask user to select manually or skip.
-                     showManualSelectionDialog("No common success indicators found (e.g. 'Logout').");
+                     showPostSuccessDialog("No common success indicators found.");
                  } else {
                      // Found keywords. Ask user to confirm.
                      showKeywordConfirmationDialog(foundKeywords);
@@ -557,10 +753,19 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             for(String k : successKeywords) skwJson.put(k);
         }
 
+        List<ServiceRepository.ExtractionPoint> extractionPoints = currentService.getExtractionPoints();
+        JSONArray epJson = new JSONArray();
+        if (extractionPoints != null) {
+            for (ServiceRepository.ExtractionPoint ep : extractionPoints) {
+                try { epJson.put(ep.toJson()); } catch (JSONException e) {}
+            }
+        }
+
         String injection = "window.targetSuccessUrl = '" + successUrl + "'; " +
                            "window.successSelector = '" + safeSelector + "'; " +
                            "window.successKeywords = " + skwJson.toString() + "; " +
-                           "window.failureKeywords = " + kwJson.toString() + ";";
+                           "window.failureKeywords = " + kwJson.toString() + "; " +
+                           "window.extractionPoints = " + epJson.toString() + ";";
 
         mWebView.evaluateJavascript(injection + js, value -> {
             if (!isBatchRunning || targetIndex != currentCredentialIndex) return;
@@ -575,7 +780,19 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
                      String status = res.getString("status");
 
                      if ("success".equals(status)) {
-                         logResult(true, res.optString("detail"), targetIndex);
+                         String extracted = "";
+                         if (res.has("extractedData")) {
+                             JSONObject ext = res.getJSONObject("extractedData");
+                             // Format extraction
+                             StringBuilder sb = new StringBuilder();
+                             java.util.Iterator<String> keys = ext.keys();
+                             while(keys.hasNext()) {
+                                 String key = keys.next();
+                                 sb.append(" | ").append(key).append(": ").append(ext.getString(key));
+                             }
+                             extracted = sb.toString();
+                         }
+                         logResult(true, res.optString("detail") + extracted, targetIndex);
                          moveToNext(targetIndex);
                      } else if ("failure".equals(status)) {
                          logResult(false, res.optString("detail"), targetIndex);

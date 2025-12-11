@@ -11,6 +11,7 @@
     var successSelector = window.successSelector || "";
     var successKeywords = window.successKeywords || [];
     var failureKeywords = window.failureKeywords || [];
+    var extractionPoints = window.extractionPoints || [];
 
     // CHALLENGE DETECT
     if (bodyText.includes("challenge") ||
@@ -31,7 +32,55 @@
         }
     }
 
-    // SUCCESS CHECK (Priority: Selector > Keywords > URL)
+    // SUCCESS CHECK (Priority: ExtractionPoints > Selector > Keywords > URL)
+
+    // 0. Extraction Points (If any exist, they are strong indicators)
+    var extractedData = {};
+    var foundExtractionPoints = false;
+
+    if (extractionPoints && extractionPoints.length > 0) {
+        for (var i = 0; i < extractionPoints.length; i++) {
+            var point = extractionPoints[i];
+            var el = document.querySelector(point.selector);
+            if (el) {
+                var text = (el.innerText || "").trim();
+
+                // Validate Pattern if exists
+                if (point.pattern && point.pattern.length > 0) {
+                    try {
+                        var regex = new RegExp(point.pattern);
+                        if (!regex.test(text)) {
+                            // Found element but pattern mismatch?
+                            // User asked: "if it's numbers just record the balance"
+                            // So we should probably still accept it if it exists, but maybe log a warning?
+                            // Or better: the regex is meant to VALIDATE success.
+                            // If user says "Balance: \d+", and we see "Error", it should NOT match.
+                            // But if we see "Balance: 123", it matches.
+
+                            // If regex fails, we treat it as NOT FOUND (so we don't count this point as success yet)
+                            continue;
+                        }
+                    } catch(e) {
+                        // Bad regex? Ignore pattern validation.
+                    }
+                }
+
+                if (text.length > 0) {
+                    extractedData[point.label] = text;
+                    foundExtractionPoints = true;
+                }
+            }
+        }
+    }
+
+    if (foundExtractionPoints) {
+         // If we found the data the user wanted, that's a success
+         return JSON.stringify({
+             status: "success",
+             detail: "Extracted data points found",
+             extractedData: extractedData
+         });
+    }
 
     // 1. Specific Element Selector
     if (successSelector && successSelector.length > 0) {

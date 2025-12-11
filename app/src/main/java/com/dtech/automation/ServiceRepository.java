@@ -105,6 +105,7 @@ public class ServiceRepository {
         private String successSelector;
         private List<String> successKeywords;
         private List<String> failureKeywords;
+        private List<ExtractionPoint> extractionPoints;
         private String scriptJson; // Stored as string to avoid repeated parsing
 
         public ServiceData(String id, String name, String loginUrl) {
@@ -113,6 +114,7 @@ public class ServiceRepository {
             this.loginUrl = loginUrl;
             this.successKeywords = new ArrayList<>();
             this.failureKeywords = new ArrayList<>();
+            this.extractionPoints = new ArrayList<>();
             this.scriptJson = "[]";
         }
 
@@ -132,6 +134,10 @@ public class ServiceRepository {
             JSONArray keywords = new JSONArray();
             for(String k : failureKeywords) keywords.put(k);
             obj.put("failureKeywords", keywords);
+
+            JSONArray ePoints = new JSONArray();
+            for(ExtractionPoint p : extractionPoints) ePoints.put(p.toJson());
+            obj.put("extractionPoints", ePoints);
 
             return obj;
         }
@@ -159,6 +165,13 @@ public class ServiceRepository {
                     s.failureKeywords.add(k.getString(i));
                 }
             }
+
+            if (obj.has("extractionPoints")) {
+                JSONArray k = obj.getJSONArray("extractionPoints");
+                for (int i = 0; i < k.length(); i++) {
+                    s.extractionPoints.add(ExtractionPoint.fromJson(k.getJSONObject(i)));
+                }
+            }
             return s;
         }
 
@@ -174,7 +187,46 @@ public class ServiceRepository {
         public void setSuccessKeywords(List<String> keywords) { this.successKeywords = keywords; }
         public List<String> getFailureKeywords() { return failureKeywords; }
         public void setFailureKeywords(List<String> keywords) { this.failureKeywords = keywords; }
+        public List<ExtractionPoint> getExtractionPoints() { return extractionPoints; }
+        public void setExtractionPoints(List<ExtractionPoint> points) { this.extractionPoints = points; }
         public String getScriptJson() { return scriptJson; }
         public void setScriptJson(String json) { this.scriptJson = json; }
+    }
+
+    public static class ExtractionPoint {
+        private String selector;
+        private String label;
+        private boolean isDynamic;
+        private String pattern;
+
+        public ExtractionPoint(String selector, String label, boolean isDynamic, String pattern) {
+            this.selector = selector;
+            this.label = label;
+            this.isDynamic = isDynamic;
+            this.pattern = pattern;
+        }
+
+        public String getSelector() { return selector; }
+        public String getLabel() { return label; }
+        public boolean isDynamic() { return isDynamic; }
+        public String getPattern() { return pattern; }
+
+        public JSONObject toJson() throws JSONException {
+            JSONObject obj = new JSONObject();
+            obj.put("selector", selector);
+            obj.put("label", label);
+            obj.put("isDynamic", isDynamic);
+            obj.put("pattern", pattern);
+            return obj;
+        }
+
+        public static ExtractionPoint fromJson(JSONObject obj) throws JSONException {
+            return new ExtractionPoint(
+                    obj.getString("selector"),
+                    obj.getString("label"),
+                    obj.optBoolean("isDynamic", false),
+                    obj.optString("pattern", "")
+            );
+        }
     }
 }
