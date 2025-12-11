@@ -15,14 +15,15 @@
         if (el.id) return '#' + el.id;
 
         var path = [];
-        while (el.nodeType === 1) {
-            var selector = el.nodeName.toLowerCase();
-            if (el.id) {
-                selector = '#' + el.id;
+        var current = el;
+        while (current && current.nodeType === 1) {
+            var selector = current.nodeName.toLowerCase();
+            if (current.id) {
+                selector = '#' + current.id;
                 path.unshift(selector);
                 break;
             } else {
-                var sib = el, nth = 1;
+                var sib = current, nth = 1;
                 while (sib = sib.previousElementSibling) {
                     if (sib.nodeName.toLowerCase() == selector)
                        nth++;
@@ -31,7 +32,7 @@
                     selector += ":nth-of-type("+nth+")";
             }
             path.unshift(selector);
-            el = el.parentNode;
+            current = current.parentNode;
         }
         return path.join(" > ");
     }
@@ -41,8 +42,19 @@
             type: type,
             selector: getSelector(target),
             time: Date.now() - window.recordingStartTime,
-            url: window.location.href, // Added URL logging
-            value: value
+            url: window.location.href,
+            value: value,
+
+            // Robust Attributes
+            tagName: target.tagName.toLowerCase(),
+            id: target.id || "",
+            name: target.name || "",
+            className: target.className || "",
+            innerText: (target.innerText || "").trim().substring(0, 50), // Cap length
+            textContent: (target.textContent || "").trim().substring(0, 50),
+            placeholder: target.placeholder || "",
+            href: (target.href || ""),
+            inputType: target.type || "" // for input elements
         };
 
         // Send directly to Java to persist across page loads
@@ -54,6 +66,7 @@
 
     // CLICK
     document.addEventListener('click', function(e) {
+        // Don't record clicks on recorder UI if we ever add one
         recordEvent('click', e.target, null);
     }, true);
 
@@ -66,7 +79,7 @@
     var lastScroll = 0;
     window.addEventListener('scroll', function(e) {
         var now = Date.now();
-        if (now - lastScroll > 200) { // 200ms throttle
+        if (now - lastScroll > 500) { // 500ms throttle for scroll
             recordEvent('scroll', document.scrollingElement || document.body, {
                 x: window.scrollX,
                 y: window.scrollY

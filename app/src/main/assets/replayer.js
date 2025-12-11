@@ -2,149 +2,236 @@
 (function() {
     console.log("Replayer injected.");
 
-    if (!window.replayEvents || !window.replayStartTime) {
+    if (!window.replayEvents) {
         console.error("Replay data missing");
         return;
     }
 
     var events = window.replayEvents;
-    var startTime = window.replayStartTime;
-    var lastIndex = (typeof window.lastExecutedIndex === 'number') ? window.lastExecutedIndex : -1;
+    // Android passes lastExecutedIndex. We start from lastExecutedIndex + 1
+    // If undefined, start at 0.
+    var startIndex = (typeof window.lastExecutedIndex === 'number') ? window.lastExecutedIndex + 1 : 0;
+
     var overrideEmail = window.overrideEmail || null;
     var overridePassword = window.overridePassword || null;
 
-    // Derived from the last event in the recording usually
+    // Derived from the last event in the recording
     var successUrl = "";
     if (events.length > 0) {
         successUrl = events[events.length - 1].url;
     }
 
-    events.sort(function(a,b){ return a.time - b.time; });
+    // --- STRATEGY FINDER ---
+    function findTarget(event) {
+        // 0. ID (Strongest)
+        if (event.id) {
+            var el = document.getElementById(event.id);
+            if (el) return el;
+        }
 
-    function simulateEvent(event, index) {
-        // Challenge / Smart Skip Logic
+        // 1. Name (Inputs)
+        if (event.name) {
+            var els = document.getElementsByName(event.name);
+            if (els.length > 0) return els[0];
+            var el = document.querySelector('[name="' + event.name + '"]');
+            if (el) return el;
+        }
+
+        // 2. Text Content (Buttons, Links, Labels)
+        // We use XPath to find elements containing the text
+        if (event.innerText && event.innerText.length > 1) {
+             var cleanText = event.innerText.replace(/'/g, "\'");
+             // Try exact match first
+             var xpathExact = "//*[text()='" + cleanText + "']";
+             var resExact = document.evaluate(xpathExact, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+             if (resExact.singleNodeValue) return resExact.singleNodeValue;
+
+             // Try contains
+             var xpathContains = "//*[contains(text(), '" + cleanText + "')]";
+             var resContains = document.evaluate(xpathContains, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+             if (resContains.singleNodeValue) return resContains.singleNodeValue;
+        }
+
+        // 3. Placeholder
+        if (event.placeholder) {
+             var el = document.querySelector('[placeholder="' + event.placeholder + '"]');
+             if (el) return el;
+        }
+
+        // 4. Href (Links)
+        if (event.href) {
+             // Strict match
+             var el = document.querySelector('a[href="' + event.href + '"]');
+             if (el) return el;
+             // Loose match
+             el = document.querySelector('a[href*="' + event.href + '"]');
+             if (el) return el;
+        }
+
+        // 5. Fallback: CSS Selector (Original)
+        if (event.selector) {
+            try {
+                var el = document.querySelector(event.selector);
+                if (el) return el;
+            } catch(e) {}
+        }
+
+        // 6. Class Name (Weakest, but useful if unique)
+        if (event.className) {
+            try {
+                // Only if class name is not too generic
+                var classes = event.className.split(" ").filter(c => c.length > 5);
+                if (classes.length > 0) {
+                     var el = document.querySelector("." + classes.join("."));
+                     if (el) return el;
+                }
+            } catch(e) {}
+        }
+
+        return null;
+    }
+
+    // --- POLL & WAIT ---
+    function waitForElementRobust(event, timeoutMs) {
+        return new Promise(function(resolve, reject) {
+            var startTime = Date.now();
+
+            function check() {
+                var el = findTarget(event);
+                if (el) {
+                    // Check visibility
+                    var style = window.getComputedStyle(el);
+                    var isVisible = style.display !== 'none' && style.visibility !== 'hidden' && (el.offsetWidth > 0 || el.offsetHeight > 0);
+
+                    if (isVisible && document.body.contains(el)) {
+                        resolve(el);
+                        return;
+                    }
+                }
+
+                if (Date.now() - startTime > timeoutMs) {
+                    resolve(null); // Timed out
+                    return;
+                }
+
+                setTimeout(check, 200); // Check every 200ms
+            }
+            check();
+        });
+    }
+
+    // --- EXECUTION LOOP ---
+    function processNextEvent(index) {
+        if (index >= events.length) {
+            console.log("All events executed.");
+            return;
+        }
+
+        var event = events[index];
+        console.log("Processing Event #" + index + ": " + event.type + " " + (event.innerText || event.selector));
+
+        // Smart Skip Logic (Challenge)
         if (shouldSkipEvent(event)) {
-            console.log("Skipping event #" + index + " (Challenge Skip)");
+             console.log("Skipping event #" + index + " (Challenge Skip)");
              if (window.Android && window.Android.eventExecuted) {
                 window.Android.eventExecuted(index);
             }
+            // Move to next immediately
+            setTimeout(function() { processNextEvent(index + 1); }, 50);
             return;
         }
 
-        var el = document.querySelector(event.selector);
-
-        // Smart Wait Logic
-        if (!el) {
-            console.log("Element not found: " + event.selector + ". Waiting...");
-            waitForElement(event.selector, 2000).then(function(foundEl) {
-                 if (foundEl) {
-                     triggerAction(foundEl, event, index);
-                 } else {
-                     console.error("Timed out waiting for " + event.selector);
-                 }
-            });
-            return;
+        // Wait for Element (Up to 30 seconds!)
+        // If it's a scroll event, we don't need to wait for an element (target is usually document)
+        if (event.type === 'scroll') {
+             triggerAction(document.body, event, index);
+             if (window.Android && window.Android.eventExecuted) window.Android.eventExecuted(index);
+             setTimeout(function() { processNextEvent(index + 1); }, 100);
+             return;
         }
-        triggerAction(el, event, index);
+
+        waitForElementRobust(event, 30000).then(function(el) {
+            if (!el) {
+                console.error("Could not find element for event #" + index);
+                // We stop here. The user must intervene or the batch logic will eventually time out (if configured).
+                // Actually, let's try to verify if we are already on the next page?
+                // No, sticking to the plan.
+                return;
+            }
+
+            // Execute
+            try {
+                triggerAction(el, event, index);
+            } catch (e) {
+                console.error("Error executing event #" + index, e);
+            }
+
+            // Notify Android
+            if (window.Android && window.Android.eventExecuted) {
+                window.Android.eventExecuted(index);
+            }
+
+            // Schedule Next
+            // Small delay to allow JS handlers to fire and potential navigation to start
+            setTimeout(function() {
+                processNextEvent(index + 1);
+            }, 100);
+        });
     }
 
     function shouldSkipEvent(event) {
         if (!event.url) return false;
-
         var currentUrl = window.location.href.toLowerCase();
         var eventUrl = event.url.toLowerCase();
-
-        // Define what looks like a challenge URL
         var isChallengeEvent = eventUrl.includes("challenge") || eventUrl.includes("captcha") || eventUrl.includes("turnstile");
-
-        // If the event is for a challenge, but we are ALREADY on the success URL, skip it
         if (isChallengeEvent && currentUrl === successUrl.toLowerCase()) {
             return true;
         }
-
         return false;
     }
 
     function triggerAction(el, event, index) {
-        console.log("Executing event #" + index + " (" + event.type + ") at " + (Date.now() - startTime));
-
         if (event.type === 'click') {
             // RANDOMIZATION LOGIC
             var rect = el.getBoundingClientRect();
-            // Calculate center
             var cx = rect.left + (rect.width / 2);
             var cy = rect.top + (rect.height / 2);
-
-            // Add random offset (+/- 3 pixels)
             var rx = (Math.random() * 6) - 3;
             var ry = (Math.random() * 6) - 3;
-
             var clientX = cx + rx;
             var clientY = cy + ry;
 
-            // Dispatch synthetic MouseEvents with coordinates
             var clickEvent = new MouseEvent('click', {
-                view: window,
-                bubbles: true,
-                cancelable: true,
-                clientX: clientX,
-                clientY: clientY
+                view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
             });
-
-            // Also dispatch mousedown/mouseup for completeness
-             var mouseDown = new MouseEvent('mousedown', {
-                view: window,
-                bubbles: true,
-                cancelable: true,
-                clientX: clientX,
-                clientY: clientY
+            var mouseDown = new MouseEvent('mousedown', {
+                view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
             });
-             var mouseUp = new MouseEvent('mouseup', {
-                view: window,
-                bubbles: true,
-                cancelable: true,
-                clientX: clientX,
-                clientY: clientY
+            var mouseUp = new MouseEvent('mouseup', {
+                view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
             });
 
             el.dispatchEvent(mouseDown);
             el.dispatchEvent(mouseUp);
             el.dispatchEvent(clickEvent);
 
-            // Fallback: Ensure the native click happens if synthetic doesn't trigger action
-            // Many frameworks listen to synthetic, but some native forms need .click()
-            // We use a small timeout to let the synthetic events bubble first
-            setTimeout(function() {
-                // Only call native click if the element handles it (like a link or button)
-                // and to be safe we don't double submit if the event handled it.
-                // But for automation, calling .click() is usually safest.
-                // However, doing BOTH might double-click.
-                // Let's stick to the synthetic event primarily, but if it's a form submit button, .click() is better.
-                // For now, let's assume .click() ensures the action happens.
-                // But if we want to be "human", the event dispatch is key.
-                // The native .click() does NOT take coordinates.
-                // If we want to strictly follow "random pixels", we rely on the dispatched event.
-                // BUT, if the site doesn't care about coordinates, .click() is robust.
-                // Let's do .click() as backup only? No, let's do .click() always to ensure functionality.
-                // The randomization is "logged" via the events, and if the site tracks mouse, it tracks the events.
-                el.click();
-            }, 10);
+            // Native fallback
+            setTimeout(function(){ el.click(); }, 10);
 
         } else if (event.type === 'input') {
             // SUBSTITUTION LOGIC
             var valToSet = event.value;
 
-            // Check if it's a password field
-            if (el.type === 'password' && overridePassword) {
+            // Password
+            if ((el.type === 'password' || event.inputType === 'password') && overridePassword) {
                 console.log("Substituting Password");
                 valToSet = overridePassword;
             }
-            // Check if it's likely an email field
+            // Email/User
             else if (overrideEmail) {
                  var type = (el.type || "").toLowerCase();
                  var name = (el.name || "").toLowerCase();
                  var id = (el.id || "").toLowerCase();
-
                  var isEmailType = type === 'email';
                  var isTextType = type === 'text';
                  var looksLikeEmail = name.includes("email") || name.includes("user") || name.includes("login") ||
@@ -156,7 +243,7 @@
                  }
             }
 
-            // Set value
+            // React/Angular Value Setter workaround
             var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
             if (nativeInputValueSetter) {
                 nativeInputValueSetter.call(el, valToSet);
@@ -166,53 +253,16 @@
 
             el.dispatchEvent(new Event('input', { bubbles: true }));
             el.dispatchEvent(new Event('change', { bubbles: true }));
+            // Dispatch key events to simulate typing? (Simplified for now)
             el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
             el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
-            el.dispatchEvent(new KeyboardEvent('keypress', { bubbles: true }));
 
         } else if (event.type === 'scroll') {
             window.scrollTo(event.value.x, event.value.y);
         }
-
-        if (window.Android && window.Android.eventExecuted) {
-            window.Android.eventExecuted(index);
-        }
     }
 
-    function waitForElement(selector, timeout) {
-        return new Promise(function(resolve, reject) {
-            var el = document.querySelector(selector);
-            if (el) { resolve(el); return; }
-
-            var observer = new MutationObserver(function(mutations, obs) {
-                el = document.querySelector(selector);
-                if (el) {
-                    obs.disconnect();
-                    resolve(el);
-                }
-            });
-            observer.observe(document, { childList: true, subtree: true });
-
-            setTimeout(function() {
-                observer.disconnect();
-                resolve(null);
-            }, timeout);
-        });
-    }
-
-    var now = Date.now();
-
-    events.forEach(function(event, index) {
-        if (index <= lastIndex) return;
-
-        var targetTime = startTime + event.time;
-        var delay = targetTime - now;
-
-        if (delay < 0) delay = 0;
-
-        setTimeout(function() {
-            simulateEvent(event, index);
-        }, delay);
-    });
+    // Start
+    processNextEvent(startIndex);
 
 })();
