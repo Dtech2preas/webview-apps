@@ -229,6 +229,54 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             .show();
     }
 
+    private void showKeywordConfirmationDialog(List<String> keywords) {
+        StringBuilder msg = new StringBuilder("Found potential success indicators:\n");
+        for(String k : keywords) msg.append("- ").append(k).append("\n");
+        msg.append("\nUse these to verify login?");
+
+        new AlertDialog.Builder(this)
+            .setTitle("Verify Success Logic")
+            .setMessage(msg.toString())
+            .setPositiveButton("Yes, Use These", (d, w) -> {
+                currentService.setSuccessKeywords(keywords);
+                currentService.setSuccessSelector(null); // Clear selector if using keywords
+                serviceRepo.addOrUpdateService(currentService);
+
+                recordingMode = RECORD_MODE_NONE;
+                btnStop.setVisibility(android.view.View.GONE);
+                startRecordingPhase2();
+            })
+            .setNegativeButton("No, Select Manual Element", (d, w) -> {
+                 enableManualSelectionMode();
+            })
+            .setCancelable(false)
+            .show();
+    }
+
+    private void showManualSelectionDialog(String reason) {
+        new AlertDialog.Builder(this)
+             .setTitle("Manual Verification Required")
+             .setMessage(reason + "\n\nPlease click on an element that proves you are logged in (e.g. Username, Balance, Deposit button).")
+             .setPositiveButton("Select Element", (d, w) -> enableManualSelectionMode())
+             .setNegativeButton("Skip (Risky)", (d, w) -> {
+                 // Fallback to just URL check (risky)
+                 currentService.setSuccessKeywords(new ArrayList<>());
+                 currentService.setSuccessSelector(null);
+                 serviceRepo.addOrUpdateService(currentService);
+
+                 recordingMode = RECORD_MODE_NONE;
+                 btnStop.setVisibility(android.view.View.GONE);
+                 startRecordingPhase2();
+             })
+             .setCancelable(false)
+             .show();
+    }
+
+    private void enableManualSelectionMode() {
+        Toast.makeText(this, "Click on a success element...", Toast.LENGTH_LONG).show();
+        mWebView.evaluateJavascript("window.enableSelectionMode()", null);
+    }
+
     private void startRecordingPhase2() {
         new AlertDialog.Builder(this)
             .setTitle("Step 2: Failure Recording")
@@ -255,20 +303,37 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         if (recordingMode == RECORD_MODE_NONE) return;
 
         if (recordingMode == RECORD_MODE_SUCCESS) {
-            // Save Success State
+            // Save initial data
             String currentUrl = mWebView.getUrl();
             currentService.setSuccessUrl(currentUrl);
-
             JSONArray arr = new JSONArray(currentSessionEvents);
             currentService.setScriptJson(arr.toString());
 
-            Toast.makeText(this, "Success Script Saved!", Toast.LENGTH_SHORT).show();
+            // Analyze page for success indicators
+            mWebView.evaluateJavascript("window.analyzeSuccessState()", value -> {
+                 List<String> foundKeywords = new ArrayList<>();
+                 try {
+                     // value might be double encoded like "\"['logout']\"" or just "['logout']"
+                     String jsonStr = value;
+                     if (jsonStr != null && jsonStr.length() > 2 && jsonStr.startsWith("\"") && jsonStr.endsWith("\"")) {
+                         // Remove outer quotes and unescape
+                         jsonStr = jsonStr.substring(1, jsonStr.length() - 1).replace("\\\"", "\"");
+                     }
 
-            recordingMode = RECORD_MODE_NONE;
-            btnStop.setVisibility(android.view.View.GONE);
+                     JSONArray json = new JSONArray(jsonStr);
+                     for(int i=0; i<json.length(); i++) foundKeywords.add(json.getString(i));
+                 } catch (Exception e) {
+                     Log.e(TAG, "Error parsing success keywords", e);
+                 }
 
-            // Trigger Phase 2
-            startRecordingPhase2();
+                 if (foundKeywords.isEmpty()) {
+                     // No auto-keywords found. Ask user to select manually or skip.
+                     showManualSelectionDialog("No common success indicators found (e.g. 'Logout').");
+                 } else {
+                     // Found keywords. Ask user to confirm.
+                     showKeywordConfirmationDialog(foundKeywords);
+                 }
+            });
 
         } else if (recordingMode == RECORD_MODE_FAILURE) {
             // Analyze Failure State
@@ -482,7 +547,19 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             for(String k : keywords) kwJson.put(k);
         }
 
+        String successSelector = currentService.getSuccessSelector() != null ? currentService.getSuccessSelector() : "";
+        // Escape single quotes for JS string
+        String safeSelector = successSelector.replace("'", "\\'");
+
+        List<String> successKeywords = currentService.getSuccessKeywords();
+        JSONArray skwJson = new JSONArray();
+        if (successKeywords != null) {
+            for(String k : successKeywords) skwJson.put(k);
+        }
+
         String injection = "window.targetSuccessUrl = '" + successUrl + "'; " +
+                           "window.successSelector = '" + safeSelector + "'; " +
+                           "window.successKeywords = " + skwJson.toString() + "; " +
                            "window.failureKeywords = " + kwJson.toString() + ";";
 
         mWebView.evaluateJavascript(injection + js, value -> {
@@ -706,6 +783,24 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         }
         @JavascriptInterface public void eventExecuted(int index) {
             if (index > lastExecutedIndex) lastExecutedIndex = index;
+        }
+        @JavascriptInterface public void onSuccessElementSelected(String selector) {
+            Log.d(TAG, "Manual Success Element Selected: " + selector);
+            if (currentService != null) {
+                currentService.setSuccessSelector(selector);
+                // Also clear generic keywords to prioritize this specific element
+                currentService.setSuccessKeywords(new ArrayList<>());
+                serviceRepo.addOrUpdateService(currentService);
+
+                runOnUiThread(() -> {
+                     Toast.makeText(mContext, "Success Indicator Set!", Toast.LENGTH_SHORT).show();
+
+                     // Resume normal flow
+                     recordingMode = RECORD_MODE_NONE;
+                     btnStop.setVisibility(android.view.View.GONE);
+                     startRecordingPhase2();
+                });
+            }
         }
     }
 }

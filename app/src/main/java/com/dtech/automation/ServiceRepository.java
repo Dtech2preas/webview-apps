@@ -102,6 +102,8 @@ public class ServiceRepository {
         private String name;
         private String loginUrl;
         private String successUrl;
+        private String successSelector;
+        private List<String> successKeywords;
         private List<String> failureKeywords;
         private String scriptJson; // Stored as string to avoid repeated parsing
 
@@ -109,6 +111,7 @@ public class ServiceRepository {
             this.id = id;
             this.name = name;
             this.loginUrl = loginUrl;
+            this.successKeywords = new ArrayList<>();
             this.failureKeywords = new ArrayList<>();
             this.scriptJson = "[]";
         }
@@ -119,7 +122,12 @@ public class ServiceRepository {
             obj.put("name", name);
             obj.put("loginUrl", loginUrl);
             obj.put("successUrl", successUrl);
+            obj.put("successSelector", successSelector);
             obj.put("scriptJson", scriptJson);
+
+            JSONArray sKeywords = new JSONArray();
+            for(String k : successKeywords) sKeywords.put(k);
+            obj.put("successKeywords", sKeywords);
 
             JSONArray keywords = new JSONArray();
             for(String k : failureKeywords) keywords.put(k);
@@ -135,7 +143,15 @@ public class ServiceRepository {
                     obj.getString("loginUrl")
             );
             if (obj.has("successUrl")) s.successUrl = obj.getString("successUrl");
+            if (obj.has("successSelector")) s.successSelector = obj.getString("successSelector");
             if (obj.has("scriptJson")) s.scriptJson = obj.getString("scriptJson");
+
+            if (obj.has("successKeywords")) {
+                JSONArray k = obj.getJSONArray("successKeywords");
+                for (int i = 0; i < k.length(); i++) {
+                    s.successKeywords.add(k.getString(i));
+                }
+            }
 
             if (obj.has("failureKeywords")) {
                 JSONArray k = obj.getJSONArray("failureKeywords");
@@ -152,6 +168,10 @@ public class ServiceRepository {
         public String getLoginUrl() { return loginUrl; }
         public String getSuccessUrl() { return successUrl; }
         public void setSuccessUrl(String url) { this.successUrl = url; }
+        public String getSuccessSelector() { return successSelector; }
+        public void setSuccessSelector(String selector) { this.successSelector = selector; }
+        public List<String> getSuccessKeywords() { return successKeywords; }
+        public void setSuccessKeywords(List<String> keywords) { this.successKeywords = keywords; }
         public List<String> getFailureKeywords() { return failureKeywords; }
         public void setFailureKeywords(List<String> keywords) { this.failureKeywords = keywords; }
         public String getScriptJson() { return scriptJson; }

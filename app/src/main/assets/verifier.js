@@ -8,7 +8,8 @@
 
     // Injected variables from Java
     var targetSuccessUrl = window.targetSuccessUrl || "";
-    // failureKeywords is expected to be a JSON array of strings, injected as window.failureKeywords
+    var successSelector = window.successSelector || "";
+    var successKeywords = window.successKeywords || [];
     var failureKeywords = window.failureKeywords || [];
 
     // CHALLENGE DETECT
@@ -30,9 +31,40 @@
         }
     }
 
-    // STRICT SUCCESS CHECK
-    // If a target URL is provided, we ONLY accept that as success
-    if (targetSuccessUrl && targetSuccessUrl.length > 5) {
+    // SUCCESS CHECK (Priority: Selector > Keywords > URL)
+
+    // 1. Specific Element Selector
+    if (successSelector && successSelector.length > 0) {
+        var el = document.querySelector(successSelector);
+        if (el) {
+             // Check visibility? Maybe optional, but existence is usually enough for SPA state
+             var style = window.getComputedStyle(el);
+             if (style.display !== 'none' && style.visibility !== 'hidden') {
+                 return JSON.stringify({ status: "success", detail: "Success element found: " + successSelector });
+             }
+        }
+    }
+
+    // 2. Success Keywords
+    if (successKeywords && successKeywords.length > 0) {
+        var allFound = true; // or anyFound? usually we want at least one strong indicator
+        for (var i = 0; i < successKeywords.length; i++) {
+            if (!bodyText.includes(successKeywords[i].toLowerCase())) {
+                allFound = false;
+                break;
+            }
+        }
+        // If we found the keywords, that's a success
+        if (allFound) {
+             return JSON.stringify({ status: "success", detail: "Success keywords found" });
+        }
+    }
+
+    // 3. Fallback to URL Check (Only if no specific selector/keywords are enforced)
+    // If the user set up selector/keywords, we ignore URL matches because they might be false positives (like on betway)
+    var hasSpecificSuccessLogic = (successSelector && successSelector.length > 0) || (successKeywords && successKeywords.length > 0);
+
+    if (!hasSpecificSuccessLogic && targetSuccessUrl && targetSuccessUrl.length > 5) {
         // Strip trailing slashes for comparison
         var cleanCurrent = currentUrl.replace(/\/$/, "").toLowerCase();
         var cleanTarget = targetSuccessUrl.replace(/\/$/, "").toLowerCase();
