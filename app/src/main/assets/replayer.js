@@ -103,7 +103,10 @@
                     var style = window.getComputedStyle(el);
                     var isVisible = style.display !== 'none' && style.visibility !== 'hidden' && (el.offsetWidth > 0 || el.offsetHeight > 0);
 
-                    if (isVisible && document.body.contains(el)) {
+                    // Extra Stability Check: element must not be disabled
+                    var isDisabled = el.disabled === true || el.getAttribute("aria-disabled") === "true";
+
+                    if (isVisible && !isDisabled && document.body.contains(el)) {
                         resolve(el);
                         return;
                     }
@@ -117,6 +120,29 @@
                 setTimeout(check, 200); // Check every 200ms
             }
             check();
+        });
+    }
+
+    function waitForPageLoad() {
+        return new Promise(function(resolve) {
+            // Check if document is complete
+            if (document.readyState === 'complete') {
+                resolve();
+                return;
+            }
+            // Otherwise wait for load event or poll
+            var interval = setInterval(function() {
+                if (document.readyState === 'complete') {
+                    clearInterval(interval);
+                    resolve();
+                }
+            }, 500);
+
+            // Safety timeout for page load (10s)
+            setTimeout(function() {
+                clearInterval(interval);
+                resolve();
+            }, 10000);
         });
     }
 
@@ -141,41 +167,43 @@
             return;
         }
 
-        // Wait for Element (Up to 30 seconds!)
-        // If it's a scroll event, we don't need to wait for an element (target is usually document)
-        if (event.type === 'scroll') {
-             triggerAction(document.body, event, index);
-             if (window.Android && window.Android.eventExecuted) window.Android.eventExecuted(index);
-             setTimeout(function() { processNextEvent(index + 1); }, 100);
-             return;
-        }
+        // Wait for Page Load before anything
+        waitForPageLoad().then(function() {
 
-        waitForElementRobust(event, 30000).then(function(el) {
-            if (!el) {
-                console.error("Could not find element for event #" + index);
-                // We stop here. The user must intervene or the batch logic will eventually time out (if configured).
-                // Actually, let's try to verify if we are already on the next page?
-                // No, sticking to the plan.
-                return;
+            // Wait for Element (Up to 25 seconds!)
+            // If it's a scroll event, we don't need to wait for an element (target is usually document)
+            if (event.type === 'scroll') {
+                 triggerAction(document.body, event, index);
+                 if (window.Android && window.Android.eventExecuted) window.Android.eventExecuted(index);
+                 setTimeout(function() { processNextEvent(index + 1); }, 100);
+                 return;
             }
 
-            // Execute
-            try {
-                triggerAction(el, event, index);
-            } catch (e) {
-                console.error("Error executing event #" + index, e);
-            }
+            waitForElementRobust(event, 25000).then(function(el) {
+                if (!el) {
+                    console.error("Could not find element for event #" + index);
+                    // We stop here. The user must intervene or the batch logic will eventually time out (if configured).
+                    return;
+                }
 
-            // Notify Android
-            if (window.Android && window.Android.eventExecuted) {
-                window.Android.eventExecuted(index);
-            }
+                // Execute
+                try {
+                    triggerAction(el, event, index);
+                } catch (e) {
+                    console.error("Error executing event #" + index, e);
+                }
 
-            // Schedule Next
-            // Small delay to allow JS handlers to fire and potential navigation to start
-            setTimeout(function() {
-                processNextEvent(index + 1);
-            }, 100);
+                // Notify Android
+                if (window.Android && window.Android.eventExecuted) {
+                    window.Android.eventExecuted(index);
+                }
+
+                // Schedule Next
+                // Small delay to allow JS handlers to fire and potential navigation to start
+                setTimeout(function() {
+                    processNextEvent(index + 1);
+                }, 100);
+            });
         });
     }
 

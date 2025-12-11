@@ -32,6 +32,12 @@
         }
     }
 
+    // CHECK FOR LOADING STATE
+    // If the page is still loading, we shouldn't attempt to verify success yet.
+    if (document.readyState !== 'complete') {
+         return JSON.stringify({ status: "pending", detail: "Page loading..." });
+    }
+
     // SUCCESS CHECK (Priority: ExtractionPoints > Selector > Keywords > URL)
 
     // 0. Extraction Points (If any exist, they are strong indicators)
