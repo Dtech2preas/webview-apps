@@ -7,6 +7,7 @@
     var bodyText = rawBodyText.toLowerCase();
 
     // Injected variables from Java
+    var loginUrl = window.loginUrl || "";
     var targetSuccessUrl = window.targetSuccessUrl || "";
     var successSelector = window.successSelector || "";
     var successKeywords = window.successKeywords || [];
@@ -119,6 +120,7 @@
     // If the user set up selector/keywords, we ignore URL matches because they might be false positives (like on betway)
     var hasSpecificSuccessLogic = (successSelector && successSelector.length > 0) || (successKeywords && successKeywords.length > 0);
 
+    // Standard Target URL Check
     if (!hasSpecificSuccessLogic && targetSuccessUrl && targetSuccessUrl.length > 5) {
         // Strip trailing slashes for comparison
         var cleanCurrent = currentUrl.replace(/\/$/, "").toLowerCase();
@@ -128,6 +130,18 @@
         if (cleanCurrent === cleanTarget || cleanCurrent.startsWith(cleanTarget)) {
             return JSON.stringify({ status: "success", detail: "Target URL reached" });
         }
+    }
+
+    // 4. Fallback for Dummy Mode (No target success URL)
+    // If we don't have a target success URL, check if URL simply CHANGED from the Login URL.
+    if (!hasSpecificSuccessLogic && (!targetSuccessUrl || targetSuccessUrl.length < 5) && loginUrl && loginUrl.length > 5) {
+         var cleanCurrent = currentUrl.split('?')[0].replace(/\/$/, "").toLowerCase();
+         var cleanLogin = loginUrl.split('?')[0].replace(/\/$/, "").toLowerCase();
+
+         // If we are NOT on the login page anymore, assume success
+         if (cleanCurrent !== cleanLogin) {
+             return JSON.stringify({ status: "success", detail: "URL Changed (No Verification Set)" });
+         }
     }
 
     // Rate Limit Checks (Generic)
