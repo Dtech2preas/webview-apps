@@ -66,9 +66,92 @@
 
     // CLICK
     document.addEventListener('click', function(e) {
+        // Check if selection mode is active
+        if (window.selectionModeActive) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            var selector = getSelector(e.target);
+            var tagName = e.target.tagName.toLowerCase();
+            var innerText = (e.target.innerText || "").trim().substring(0, 30);
+
+            // Confirm with user logic in Android is triggered by this
+            if (window.Android && window.Android.onSuccessElementSelected) {
+                window.Android.onSuccessElementSelected(selector);
+            }
+
+            // Disable mode after one click
+            disableSelectionMode();
+            return;
+        }
+
         // Don't record clicks on recorder UI if we ever add one
         recordEvent('click', e.target, null);
     }, true);
+
+    // --- Success Analysis & Selection Mode ---
+
+    window.initialBodyText = document.body.innerText || "";
+
+    window.analyzeSuccessState = function() {
+        var currentText = (document.body.innerText || "").toLowerCase();
+
+        // Define common success indicators
+        var candidates = ["logout", "sign out", "my account", "deposit", "balance", "profile", "settings", "welcome"];
+        var found = [];
+
+        candidates.forEach(function(word) {
+            // Simple check: exists now
+            // Better check: exists now AND (maybe didn't exist before? or just exists is enough for these specific words)
+            // For robust 'logout', it usually doesn't exist on login page.
+            if (currentText.includes(word)) {
+                found.push(word);
+            }
+        });
+
+        return JSON.stringify(found);
+    };
+
+    // UI Helpers for Selection Mode
+    var styleElement = null;
+
+    window.enableSelectionMode = function() {
+        window.selectionModeActive = true;
+
+        // Add highlight styles
+        styleElement = document.createElement('style');
+        styleElement.innerHTML = `
+            * { cursor: crosshair !important; }
+            .dtech-highlight { outline: 2px solid #ff0000 !important; background-color: rgba(255, 0, 0, 0.1) !important; }
+        `;
+        document.head.appendChild(styleElement);
+
+        document.addEventListener('mouseover', onMouseOver, true);
+        document.addEventListener('mouseout', onMouseOut, true);
+
+        console.log("Selection Mode Enabled");
+    };
+
+    function disableSelectionMode() {
+        window.selectionModeActive = false;
+        if (styleElement) {
+            document.head.removeChild(styleElement);
+            styleElement = null;
+        }
+        document.removeEventListener('mouseover', onMouseOver, true);
+        document.removeEventListener('mouseout', onMouseOut, true);
+        console.log("Selection Mode Disabled");
+    }
+
+    function onMouseOver(e) {
+        if (!window.selectionModeActive) return;
+        e.target.classList.add('dtech-highlight');
+    }
+
+    function onMouseOut(e) {
+        if (!window.selectionModeActive) return;
+        e.target.classList.remove('dtech-highlight');
+    }
 
     // INPUT
     document.addEventListener('input', function(e) {
