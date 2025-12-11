@@ -13,6 +13,7 @@ public class InfoActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_info);
+        overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
 
         Button btnBack = findViewById(R.id.btn_back);
         btnBack.setOnClickListener(v -> finish());
@@ -50,5 +51,11 @@ public class InfoActivity extends Activity {
                 "Go to the Ad System screen to check your timer and extend it!";
 
         tvInfo.setText(Html.fromHtml(infoText, Html.FROM_HTML_MODE_LEGACY));
+    }
+
+    @Override
+    public void finish() {
+        super.finish();
+        overridePendingTransition(android.R.anim.slide_in_left, android.R.anim.slide_out_right);
     }
 }

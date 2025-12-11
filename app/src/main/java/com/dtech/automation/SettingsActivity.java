@@ -25,6 +25,7 @@ public class SettingsActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_settings);
+        overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
 
         etCredentials = findViewById(R.id.et_credentials);
         btnSave = findViewById(R.id.btn_save);
@@ -65,5 +66,11 @@ public class SettingsActivity extends Activity {
 
         Toast.makeText(this, "Credentials Saved", Toast.LENGTH_SHORT).show();
         finish();
+    }
+
+    @Override
+    public void finish() {
+        super.finish();
+        overridePendingTransition(android.R.anim.slide_in_left, android.R.anim.slide_out_right);
     }
 }

@@ -85,6 +85,10 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     private android.os.Handler adCheckHandler = new android.os.Handler();
     private Runnable adCheckRunnable;
 
+    // Promo Popup Scheduler
+    private android.os.Handler promoHandler = new android.os.Handler();
+    private Runnable promoRunnable;
+
     private static final String PREFS_NAME = "AutomationPrefs";
     private static final String KEY_BATCH_INDEX = "batch_current_index";
 
@@ -93,6 +97,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
 
         mWebView = findViewById(R.id.activity_main_webview);
         txtServiceName = findViewById(R.id.txt_service_name);
@@ -113,6 +118,68 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
 
         loadLastService();
         startAdChecker();
+        startPromoScheduler();
+    }
+
+    private void startPromoScheduler() {
+        // Schedule random popups (every 5-15 minutes)
+        // For testing/demo, let's say every 5-10 minutes
+        long delay = 300000 + (long)(Math.random() * 300000); // 5 to 10 mins
+
+        promoRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (!isBatchRunning && !isReplaying && recordingMode == RECORD_MODE_NONE) {
+                    showRandomPromo();
+                }
+                // Schedule next
+                long nextDelay = 300000 + (long)(Math.random() * 600000); // 5-15 mins
+                promoHandler.postDelayed(this, nextDelay);
+            }
+        };
+        promoHandler.postDelayed(promoRunnable, delay);
+    }
+
+    private void showRandomPromo() {
+        if (isFinishing()) return;
+
+        boolean showChannel = Math.random() > 0.5;
+        String title = showChannel ? "Stay in the Loop!" : "Suggestions?";
+        String msg = showChannel
+            ? "Join our D-TECH Telegram channel for new updates and features."
+            : "Have an improvement idea? Reach out to me on my personal Telegram.";
+        String btnText = showChannel ? "JOIN CHANNEL" : "CONTACT ME";
+        String url = showChannel ? "https://t.me/DTECHX24" : "https://t.me/PREASX24";
+
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.setContentView(R.layout.dialog_promo);
+        dialog.setCancelable(true);
+        if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+
+        TextView tvTitle = dialog.findViewById(R.id.tv_promo_title);
+        TextView tvMsg = dialog.findViewById(R.id.tv_promo_message);
+        Button btnAction = dialog.findViewById(R.id.btn_promo_action);
+        Button btnClose = dialog.findViewById(R.id.btn_promo_close);
+
+        tvTitle.setText(title);
+        tvMsg.setText(msg);
+        btnAction.setText(btnText);
+
+        btnAction.setOnClickListener(v -> {
+            try {
+                startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)));
+            } catch (Exception e) {}
+            dialog.dismiss();
+        });
+
+        btnClose.setOnClickListener(v -> dialog.dismiss());
+
+        // Auto-close after 30 seconds
+        new android.os.Handler().postDelayed(() -> {
+            if (dialog.isShowing()) dialog.dismiss();
+        }, 30000);
+
+        dialog.show();
     }
 
     private void setupScannerUI() {
@@ -324,6 +391,16 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     }
 
     @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (adCheckRunnable != null) adCheckHandler.removeCallbacks(adCheckRunnable);
+        if (promoRunnable != null) promoHandler.removeCallbacks(promoRunnable);
+        if (batchHandler != null) {
+            batchHandler.removeCallbacksAndMessages(null);
+        }
+    }
+
+    @Override
     public void onServiceSelected(ServiceRepository.ServiceData service) {
         this.currentService = service;
         txtServiceName.setText("Service: " + service.getName());
@@ -412,7 +489,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
 
         new AlertDialog.Builder(this)
             .setTitle("Step 1: Success Recording")
-            .setMessage("Please log in with VALID credentials.\n\nClick STOP when you reach the dashboard/success page.")
+            .setMessage("Please log in correctly to your account.\n\nClick STOP only after you have fully logged in and can see your dashboard.")
             .setPositiveButton("Start", (d, w) -> {
                 // Reset session
                 currentSessionEvents.clear();
@@ -456,12 +533,12 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     private void showPostSuccessDialog(String reason, boolean forceManual) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this)
              .setTitle("Success Verification")
-             .setMessage(reason + "\n\nUse the Scanner to manually select Success Indicators and Data (e.g. Balance).")
+             .setMessage(reason + "\n\nPlease use the Scanner tool to select something unique on this page (like your Balance or Profile Name).")
              .setPositiveButton("Open Scanner", (d, w) -> openScannerOverlay())
              .setCancelable(false);
 
         if (!forceManual) {
-            builder.setNegativeButton("Skip (Risky)", (d, w) -> {
+            builder.setNegativeButton("Skip (Not Recommended)", (d, w) -> {
                  // Fallback to just URL check (risky)
                  currentService.setSuccessKeywords(new ArrayList<>());
                  currentService.setSuccessSelector(null);
@@ -472,11 +549,11 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
                  startRecordingPhase2();
             });
         } else {
-            builder.setMessage(reason + "\n\n⚠️ Same URL detected. You MUST select an element (e.g. Balance) to prove login success.");
+            builder.setMessage(reason + "\n\n⚠️ Important: You must pick an element on the screen (like 'Balance') to prove you are logged in.");
             builder.setNegativeButton("Help", (d, w) -> {
                  new AlertDialog.Builder(this)
                      .setTitle("Why is this required?")
-                     .setMessage("Because the login page and the success page have the same URL (e.g. pop-up login), the system cannot detect success automatically.\n\nYou must explicitly tell the system what 'Success' looks like by selecting an element that only appears when logged in (like your Account Balance or Profile Name).")
+                     .setMessage("The system can't tell if you logged in because the website address didn't change.\n\nYou need to show it a part of the page that only appears when you are logged in.")
                      .setPositiveButton("Got it", (d2, w2) -> showPostSuccessDialog(reason, true))
                      .show();
             });
@@ -487,10 +564,10 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
 
     private void askToExtractData() {
         new AlertDialog.Builder(this)
-            .setTitle("Data Extraction")
-            .setMessage("Do you want to extract data (e.g. Balance, Status) from the page?")
-            .setPositiveButton("Yes, Open Scanner", (d, w) -> openScannerOverlay())
-            .setNegativeButton("No, Continue", (d, w) -> {
+            .setTitle("Want to save data?")
+            .setMessage("Do you want to save specific info like Account Balance or Status?")
+            .setPositiveButton("Yes", (d, w) -> openScannerOverlay())
+            .setNegativeButton("No, I'm done", (d, w) -> {
                 recordingMode = RECORD_MODE_NONE;
                 btnStop.setVisibility(android.view.View.GONE);
                 startRecordingPhase2();
@@ -512,7 +589,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     private void startRecordingPhase2() {
         new AlertDialog.Builder(this)
             .setTitle("Step 2: Failure Recording")
-            .setMessage("Now, log in with INVALID credentials.\n\nClick STOP when you see the error message.")
+            .setMessage("Now, try to log in with a WRONG password.\n\nClick STOP when you see the error message (e.g., 'Incorrect Password').")
             .setPositiveButton("Start", (d, w) -> {
                 recordingStartTime = System.currentTimeMillis(); // Reset timer? Or keep? Doesn't matter for failure check.
                 recordingMode = RECORD_MODE_FAILURE;
@@ -917,9 +994,13 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         if (index >= credentialList.size()) return;
         String cred = credentialList.get(index);
         String status = success ? "SUCCESS" : "FAILURE";
-        String msg = status + " " + cred + " (powered by DTECH)";
+
+        // Format: STATUS|SERVICE_NAME|email:pass (powered by DTECH)
+        String serviceName = currentService != null ? currentService.getName() : "Unknown";
+        String msg = status + "|" + serviceName + "|" + cred + " (powered by DTECH)";
+
         Log.i(TAG, "Batch Result: " + msg);
-        runOnUiThread(() -> Toast.makeText(this, msg, Toast.LENGTH_SHORT).show());
+        runOnUiThread(() -> Toast.makeText(this, status + ": " + cred, Toast.LENGTH_SHORT).show());
         saveResultToFile(msg);
 
         if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
@@ -964,38 +1045,104 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             FileInputStream fis = openFileInput("batch_results.txt");
             BufferedReader reader = new BufferedReader(new InputStreamReader(fis));
             StringBuilder sb = new StringBuilder();
+
+            // Map<ServiceName, List<Lines>>
+            java.util.Map<String, List<String>> groups = new java.util.HashMap<>();
+            List<String> rawLines = new ArrayList<>();
+
             String line;
-            while ((line = reader.readLine()) != null) sb.append(line).append("\n");
+            while ((line = reader.readLine()) != null) {
+                rawLines.add(line);
+                String[] parts = line.split("\\|");
+                String svc = "General";
+                String content = line;
+
+                // Check if new format: STATUS|SERVICE|CONTENT
+                if (parts.length >= 3) {
+                    svc = parts[1];
+                    // Reconstruct content without the pipes if desired, or keep raw
+                    // Let's keep a cleaner display format: STATUS content
+                    content = parts[0] + " " + parts[2];
+                }
+
+                if (!groups.containsKey(svc)) groups.put(svc, new ArrayList<>());
+                groups.get(svc).add(content);
+            }
             reader.close();
 
+            // Build Display String
+            for (String svc : groups.keySet()) {
+                sb.append("--- ").append(svc).append(" ---\n");
+                for (String l : groups.get(svc)) {
+                    sb.append(l).append("\n");
+                }
+                sb.append("\n");
+            }
+
             String res = sb.toString();
+            String rawRes = android.text.TextUtils.join("\n", rawLines);
+
             new AlertDialog.Builder(this)
                 .setTitle("Batch Results")
                 .setMessage(res.length() > 0 ? res : "No results.")
                 .setPositiveButton("OK", null)
                 .setNegativeButton("Share", (d, w) -> shareResults(res))
-                .setNeutralButton("Options", (d, w) -> showResultOptions(res))
+                .setNeutralButton("Options", (d, w) -> showResultOptions(rawRes, new ArrayList<>(groups.keySet())))
                 .show();
         } catch (IOException e) { Toast.makeText(this, "No results.", Toast.LENGTH_SHORT).show(); }
     }
 
-    private void showResultOptions(String results) {
+    private void showResultOptions(String rawResults, List<String> serviceNames) {
         String[] options = {"Copy Success Only", "Clear Results"};
         new AlertDialog.Builder(this).setItems(options, (d, w) -> {
-            if (w == 0) copySuccessResults(results);
+            if (w == 0) showCopyOptions(rawResults, serviceNames);
             else if (w == 1) { deleteFile("batch_results.txt"); Toast.makeText(this, "Cleared", Toast.LENGTH_SHORT).show(); }
         }).show();
     }
 
-    private void copySuccessResults(String full) {
+    private void showCopyOptions(String rawResults, List<String> serviceNames) {
+        // Add "All Services" to the list
+        List<String> choices = new ArrayList<>();
+        choices.add("All Services");
+        choices.addAll(serviceNames);
+
+        String[] choiceArray = choices.toArray(new String[0]);
+
+        new AlertDialog.Builder(this)
+            .setTitle("Copy from which service?")
+            .setItems(choiceArray, (d, w) -> {
+                String selected = choiceArray[w];
+                copySuccessResults(rawResults, selected);
+            })
+            .show();
+    }
+
+    private void copySuccessResults(String full, String targetService) {
         StringBuilder sb = new StringBuilder();
         for (String line : full.split("\n")) {
-            if (line.contains("SUCCESS")) sb.append(line).append("\n");
+            if (!line.contains("SUCCESS")) continue;
+
+            String[] parts = line.split("\\|");
+            // Format: STATUS|SERVICE|CONTENT or OldFormat
+
+            if (parts.length >= 3) {
+                String svc = parts[1];
+                if (targetService.equals("All Services") || targetService.equals(svc)) {
+                    sb.append(parts[2]).append("\n");
+                }
+            } else {
+                // Handle legacy format (treat as General/All)
+                if (targetService.equals("All Services") || targetService.equals("General")) {
+                     sb.append(line).append("\n");
+                }
+            }
         }
-        if (sb.length() == 0) { Toast.makeText(this, "None", Toast.LENGTH_SHORT).show(); return; }
+
+        if (sb.length() == 0) { Toast.makeText(this, "No success results found for " + targetService, Toast.LENGTH_SHORT).show(); return; }
+
         android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         cm.setPrimaryClip(android.content.ClipData.newPlainText("Results", sb.toString()));
-        Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Copied Success Results", Toast.LENGTH_SHORT).show();
     }
 
     private void shareResults(String res) {

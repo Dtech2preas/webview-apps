@@ -26,6 +26,7 @@ public class AdSystemActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_ad_system);
+        overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
 
         Button btnBack = findViewById(R.id.btn_back_ad);
         btnBack.setOnClickListener(v -> finish());
@@ -107,5 +108,11 @@ public class AdSystemActivity extends Activity {
             isWaitingForAdReturn = false;
             manualAdStartTime = 0;
         }
+    }
+
+    @Override
+    public void finish() {
+        super.finish();
+        overridePendingTransition(android.R.anim.slide_in_left, android.R.anim.slide_out_right);
     }
 }
