@@ -55,6 +55,40 @@
                 android:padding="4dp"
                 android:layout_marginBottom="8dp"/>
 
+            <!-- Size Controls -->
+            <LinearLayout
+                android:id="@+id/scanner_size_controls"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_above="@id/scanner_controls"
+                android:layout_alignParentEnd="true"
+                android:orientation="vertical"
+                android:padding="8dp">
+
+                <Button
+                    android:id="@+id/btn_scan_size_inc"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:text="+"
+                    android:backgroundTint="#FFFFFF"
+                    android:textColor="#000000"
+                    android:textStyle="bold"
+                    android:textSize="20sp"
+                    android:layout_marginBottom="8dp"/>
+
+                <Button
+                    android:id="@+id/btn_scan_size_dec"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:text="-"
+                    android:backgroundTint="#FFFFFF"
+                    android:textColor="#000000"
+                    android:textStyle="bold"
+                    android:textSize="20sp"/>
+
+            </LinearLayout>
+
+
             <!-- Controls -->
             <LinearLayout
                 android:id="@+id/scanner_controls"

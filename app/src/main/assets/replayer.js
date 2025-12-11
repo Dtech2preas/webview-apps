@@ -14,6 +14,7 @@
 
     var overrideEmail = window.overrideEmail || null;
     var overridePassword = window.overridePassword || null;
+    var coordinateMode = window.coordinateMode === true;
 
     // Derived from the last event in the recording
     var successUrl = "";
@@ -170,6 +171,37 @@
         // Wait for Page Load before anything
         waitForPageLoad().then(function() {
 
+            // Coordinate Mode Logic (Bypass Element Search for Clicks)
+            if (coordinateMode && event.type === 'click' && event.x !== undefined && event.y !== undefined) {
+                console.log("Coordinate Mode: Clicking at " + event.x + ", " + event.y);
+
+                // Scroll to target (centered)
+                var targetX = event.x - (window.innerWidth / 2);
+                var targetY = event.y - (window.innerHeight / 2);
+                window.scrollTo(targetX, targetY);
+
+                // Wait for scroll
+                setTimeout(function() {
+                     // Calculate Client Coordinates (Viewport relative)
+                     var clientX = event.x - window.pageXOffset;
+                     var clientY = event.y - window.pageYOffset;
+
+                     // Get element at point or fallback to body
+                     var el = document.elementFromPoint(clientX, clientY) || document.body;
+
+                     try {
+                        triggerAction(el, event, index, { x: clientX, y: clientY });
+                     } catch(e) {
+                        console.error("Error executing coordinate click", e);
+                     }
+
+                     if (window.Android && window.Android.eventExecuted) window.Android.eventExecuted(index);
+                     setTimeout(function() { processNextEvent(index + 1); }, 500);
+                }, 300);
+
+                return;
+            }
+
             // Wait for Element (Up to 25 seconds!)
             // If it's a scroll event, we don't need to wait for an element (target is usually document)
             if (event.type === 'scroll') {
@@ -218,16 +250,23 @@
         return false;
     }
 
-    function triggerAction(el, event, index) {
+    function triggerAction(el, event, index, forcedCoords) {
         if (event.type === 'click') {
-            // RANDOMIZATION LOGIC
-            var rect = el.getBoundingClientRect();
-            var cx = rect.left + (rect.width / 2);
-            var cy = rect.top + (rect.height / 2);
-            var rx = (Math.random() * 6) - 3;
-            var ry = (Math.random() * 6) - 3;
-            var clientX = cx + rx;
-            var clientY = cy + ry;
+            var clientX, clientY;
+
+            if (forcedCoords) {
+                clientX = forcedCoords.x;
+                clientY = forcedCoords.y;
+            } else {
+                // RANDOMIZATION LOGIC
+                var rect = el.getBoundingClientRect();
+                var cx = rect.left + (rect.width / 2);
+                var cy = rect.top + (rect.height / 2);
+                var rx = (Math.random() * 6) - 3;
+                var ry = (Math.random() * 6) - 3;
+                clientX = cx + rx;
+                clientY = cy + ry;
+            }
 
             var clickEvent = new MouseEvent('click', {
                 view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
@@ -243,8 +282,12 @@
             el.dispatchEvent(mouseUp);
             el.dispatchEvent(clickEvent);
 
-            // Native fallback
-            setTimeout(function(){ el.click(); }, 10);
+            // Native fallback (only if not coordinate mode, or maybe always?)
+            // If coordinate mode, el might be body or something wrong, so be careful with .click()
+            // But if we found an elementFromPoint, .click() is good.
+            if (!coordinateMode || (forcedCoords && el !== document.body)) {
+                 setTimeout(function(){ try { el.click(); } catch(e){} }, 10);
+            }
 
         } else if (event.type === 'input') {
             // SUBSTITUTION LOGIC
