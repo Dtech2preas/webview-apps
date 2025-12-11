@@ -53,6 +53,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     private static final int RECORD_MODE_NONE = 0;
     private static final int RECORD_MODE_SUCCESS = 1;
     private static final int RECORD_MODE_FAILURE = 2;
+    private static final int RECORD_MODE_DUMMY = 3;
     private int recordingMode = RECORD_MODE_NONE;
 
     private boolean isReplaying = false;
@@ -372,6 +373,32 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             .show();
     }
 
+    private void startRecordingDummy() {
+        if (currentService == null) return;
+
+        new AlertDialog.Builder(this)
+                .setTitle("Record Actions")
+                .setMessage("Use any dummy details (or real ones) to show the app where to type email and password.\n\nClick STOP after you click the login button.")
+                .setPositiveButton("Start", (d, w) -> {
+                    // Reset session
+                    currentSessionEvents.clear();
+                    recordingStartTime = System.currentTimeMillis();
+                    recordingMode = RECORD_MODE_DUMMY;
+                    recordingStartUrl = currentService.getLoginUrl();
+
+                    // Reset UI
+                    btnRecord.setVisibility(android.view.View.GONE);
+                    btnStop.setVisibility(android.view.View.VISIBLE);
+                    btnPlay.setVisibility(android.view.View.GONE);
+
+                    // Clear cookies for clean start
+                    android.webkit.CookieManager.getInstance().removeAllCookies(null);
+                    mWebView.loadUrl(recordingStartUrl);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
     private void loadLastService() {
         String lastId = serviceRepo.getLastUsedServiceId();
         if (lastId != null) {
@@ -611,6 +638,31 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     private void stopRecording() {
         if (recordingMode == RECORD_MODE_NONE) return;
 
+        if (recordingMode == RECORD_MODE_DUMMY) {
+            // Save Script Only
+            JSONArray arr = new JSONArray(currentSessionEvents);
+            currentService.setScriptJson(arr.toString());
+
+            // Clear Verification Data (Force URL Change Logic)
+            currentService.setSuccessUrl("");
+            currentService.setSuccessSelector(null);
+            currentService.setSuccessKeywords(new ArrayList<>());
+            currentService.setFailureKeywords(new ArrayList<>());
+            currentService.setExtractionPoints(new ArrayList<>());
+
+            serviceRepo.addOrUpdateService(currentService);
+
+            Toast.makeText(this, "Actions Recorded (URL Change Mode)", Toast.LENGTH_LONG).show();
+
+            recordingMode = RECORD_MODE_NONE;
+            btnRecord.setVisibility(android.view.View.VISIBLE);
+            btnStop.setVisibility(android.view.View.GONE);
+            btnPlay.setVisibility(android.view.View.VISIBLE);
+
+            mWebView.loadUrl(currentService.getLoginUrl());
+            return;
+        }
+
         if (recordingMode == RECORD_MODE_SUCCESS) {
             // Save initial data
             String currentUrl = mWebView.getUrl();
@@ -695,8 +747,18 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     // --- Batch Replay Logic ---
 
     private void startBatchReplay() {
-        if (currentService == null || currentSessionEvents.isEmpty()) {
-            Toast.makeText(this, "Service not configured. Record first.", Toast.LENGTH_SHORT).show();
+        if (currentService == null) {
+             Toast.makeText(this, "Select a service first", Toast.LENGTH_SHORT).show();
+             return;
+        }
+
+        if (currentSessionEvents.isEmpty()) {
+            new AlertDialog.Builder(this)
+                .setTitle("No Recording Found")
+                .setMessage("You need to record the login actions first.\n\nIf you don't have a valid account, use 'Record Actions' to simulate a login (verification will rely on URL changes).")
+                .setPositiveButton("Record Actions", (d, w) -> startRecordingDummy())
+                .setNegativeButton("Cancel", null)
+                .show();
             return;
         }
 
@@ -789,9 +851,15 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         String currentPair = credentialList.get(currentCredentialIndex);
         Log.d(TAG, "Processing: " + currentPair);
 
+        // Show status alert
+        Toast.makeText(this, "Resetting Environment...", Toast.LENGTH_SHORT).show();
+
         final int targetIndex = currentCredentialIndex;
 
         android.webkit.CookieManager.getInstance().removeAllCookies(value -> {
+            // Show status alert
+            runOnUiThread(() -> Toast.makeText(this, "Clearing Cache & Cookies...", Toast.LENGTH_SHORT).show());
+
             android.webkit.WebStorage.getInstance().deleteAllData();
             mWebView.clearCache(true);
 
@@ -800,6 +868,10 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
                  isWaitingForNext = false;
                  replayStartTime = System.currentTimeMillis();
                  lastExecutedIndex = -1;
+
+                 // Show status alert
+                 Toast.makeText(this, "Loading Login Page...", Toast.LENGTH_SHORT).show();
+
                  mWebView.loadUrl(currentService.getLoginUrl());
             }, 1000);
         });
@@ -839,6 +911,11 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
                        "window.overridePassword = overrides.password;" +
                        "window.coordinateMode = " + useCoordinateMode + ";";
 
+        // Show status alert
+        if (!email.isEmpty()) {
+             Toast.makeText(this, "Testing Account: " + email, Toast.LENGTH_SHORT).show();
+        }
+
         mWebView.evaluateJavascript(setup + js, null);
 
         final int targetIndex = currentCredentialIndex;
@@ -862,6 +939,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         String js = readAssetFile("verifier.js");
 
         // Inject Dynamic Configs from ServiceData
+        String loginUrl = currentService.getLoginUrl(); // Should always be set
         String successUrl = currentService.getSuccessUrl() != null ? currentService.getSuccessUrl() : "";
         List<String> keywords = currentService.getFailureKeywords();
         JSONArray kwJson = new JSONArray();
@@ -887,7 +965,8 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             }
         }
 
-        String injection = "window.targetSuccessUrl = '" + successUrl + "'; " +
+        String injection = "window.loginUrl = '" + loginUrl + "'; " +
+                           "window.targetSuccessUrl = '" + successUrl + "'; " +
                            "window.successSelector = '" + safeSelector + "'; " +
                            "window.successKeywords = " + skwJson.toString() + "; " +
                            "window.failureKeywords = " + kwJson.toString() + "; " +
