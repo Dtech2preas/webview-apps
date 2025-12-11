@@ -56,6 +56,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
 
     private boolean isReplaying = false;
     private long recordingStartTime = 0;
+    private String recordingStartUrl = "";
     private long replayStartTime = 0;
     private int lastExecutedIndex = -1;
 
@@ -396,13 +397,14 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
                 currentSessionEvents.clear();
                 recordingStartTime = System.currentTimeMillis();
                 recordingMode = RECORD_MODE_SUCCESS;
+                recordingStartUrl = currentService.getLoginUrl();
 
                 // Reset UI
                 btnRecord.setVisibility(android.view.View.GONE);
                 btnStop.setVisibility(android.view.View.VISIBLE);
                 btnPlay.setVisibility(android.view.View.GONE);
 
-                mWebView.loadUrl(currentService.getLoginUrl());
+                mWebView.loadUrl(recordingStartUrl);
             })
             .setNegativeButton("Cancel", null)
             .show();
@@ -430,12 +432,15 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             .show();
     }
 
-    private void showPostSuccessDialog(String reason) {
-        new AlertDialog.Builder(this)
+    private void showPostSuccessDialog(String reason, boolean forceManual) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
              .setTitle("Success Verification")
              .setMessage(reason + "\n\nUse the Scanner to manually select Success Indicators and Data (e.g. Balance).")
              .setPositiveButton("Open Scanner", (d, w) -> openScannerOverlay())
-             .setNegativeButton("Skip (Risky)", (d, w) -> {
+             .setCancelable(false);
+
+        if (!forceManual) {
+            builder.setNegativeButton("Skip (Risky)", (d, w) -> {
                  // Fallback to just URL check (risky)
                  currentService.setSuccessKeywords(new ArrayList<>());
                  currentService.setSuccessSelector(null);
@@ -444,9 +449,19 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
                  recordingMode = RECORD_MODE_NONE;
                  btnStop.setVisibility(android.view.View.GONE);
                  startRecordingPhase2();
-             })
-             .setCancelable(false)
-             .show();
+            });
+        } else {
+            builder.setMessage(reason + "\n\n⚠️ Same URL detected. You MUST select an element (e.g. Balance) to prove login success.");
+            builder.setNegativeButton("Help", (d, w) -> {
+                 new AlertDialog.Builder(this)
+                     .setTitle("Why is this required?")
+                     .setMessage("Because the login page and the success page have the same URL (e.g. pop-up login), the system cannot detect success automatically.\n\nYou must explicitly tell the system what 'Success' looks like by selecting an element that only appears when logged in (like your Account Balance or Profile Name).")
+                     .setPositiveButton("Got it", (d2, w2) -> showPostSuccessDialog(reason, true))
+                     .show();
+            });
+        }
+
+        builder.show();
     }
 
     private void askToExtractData() {
@@ -522,11 +537,21 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
                      Log.e(TAG, "Error parsing success keywords", e);
                  }
 
+                 // Check if URL changed significantly
+                 boolean urlChanged = !currentUrl.split("\\?")[0].equals(recordingStartUrl.split("\\?")[0]);
+
                  if (foundKeywords.isEmpty()) {
-                     // No auto-keywords found. Ask user to select manually or skip.
-                     showPostSuccessDialog("No common success indicators found.");
+                     // No auto-keywords found. Ask user to select manually.
+                     // If URL didn't change, we FORCE manual selection.
+                     if (!urlChanged) {
+                         showPostSuccessDialog("The URL did not change after login.", true);
+                     } else {
+                         showPostSuccessDialog("No common success indicators found.", false);
+                     }
                  } else {
                      // Found keywords. Ask user to confirm.
+                     // Even if keywords found, if URL didn't change, we should be careful.
+                     // But keywords are usually good enough if they are "Logout" or "My Account".
                      showKeywordConfirmationDialog(foundKeywords);
                  }
             });
