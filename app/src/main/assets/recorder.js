@@ -12,13 +12,15 @@
 
     function getSelector(el) {
         if (!el || el.nodeType !== 1) return null;
-        if (el.id) return '#' + el.id;
+        // Avoid using IDs if they contain digits (often dynamic)
+        if (el.id && !/\d/.test(el.id)) return '#' + el.id;
 
         var path = [];
         var current = el;
         while (current && current.nodeType === 1) {
             var selector = current.nodeName.toLowerCase();
-            if (current.id) {
+            // Check ID at this level too
+            if (current.id && !/\d/.test(current.id)) {
                 selector = '#' + current.id;
                 path.unshift(selector);
                 break;

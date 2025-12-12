@@ -76,6 +76,21 @@
 
     // Helper to return success with extracted data
     function returnSuccess(detail) {
+        // New Logic: Wait for data if success detected but data missing
+        var hasExtractionConfig = extractionPoints && extractionPoints.length > 0;
+        var missingData = hasExtractionConfig && !foundExtractionPoints;
+
+        if (missingData) {
+            if (!window.firstSuccessTime) {
+                window.firstSuccessTime = Date.now();
+            }
+
+            // Wait up to 4 seconds for data to appear
+            if (Date.now() - window.firstSuccessTime < 4000) {
+                 return JSON.stringify({ status: "pending", detail: "Success detected, waiting for data..." });
+            }
+        }
+
         return JSON.stringify({
              status: "success",
              detail: detail,

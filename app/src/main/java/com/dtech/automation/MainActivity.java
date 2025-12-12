@@ -255,12 +255,12 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
                             "  var el = document.elementFromPoint(x, y);" +
                             "  if (!el) return null;" +
                             "  var getSelector = function(el) {" +
-                            "    if (el.id) return '#' + el.id;" +
+                            "    if (el.id && !/\\d/.test(el.id)) return '#' + el.id;" +
                             "    var path = [];" +
                             "    var current = el;" +
                             "    while (current && current.nodeType === 1) {" +
                             "       var selector = current.nodeName.toLowerCase();" +
-                            "       if (current.id) {" +
+                            "       if (current.id && !/\\d/.test(current.id)) {" +
                             "           selector = '#' + current.id;" +
                             "           path.unshift(selector);" +
                             "           break;" +
