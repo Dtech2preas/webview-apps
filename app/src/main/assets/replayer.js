@@ -303,13 +303,34 @@
                  var type = (el.type || "").toLowerCase();
                  var name = (el.name || "").toLowerCase();
                  var id = (el.id || "").toLowerCase();
-                 var isEmailType = type === 'email';
-                 var isTextType = type === 'text';
-                 var looksLikeEmail = name.includes("email") || name.includes("user") || name.includes("login") ||
-                                      id.includes("email") || id.includes("user");
 
-                 if (isEmailType || (isTextType && looksLikeEmail) || (isTextType && !looksLikeEmail && index === 0)) {
-                      console.log("Substituting Email");
+                 var isEmailType = type === 'email';
+                 var isPhoneType = type === 'tel';
+                 var isTextType = type === 'text';
+                 var isNumberType = type === 'number';
+
+                 var combinedName = name + id;
+                 // Expanded keywords to include phone/mobile related terms
+                 // Removed generic "id" and "number" to avoid false positives (e.g. street_number)
+                 var credentialKeywords = ["email", "user", "login", "phone", "mobile", "cell", "msisdn", "account"];
+
+                 var looksLikeCredential = false;
+                 for (var k = 0; k < credentialKeywords.length; k++) {
+                     if (combinedName.includes(credentialKeywords[k])) {
+                         looksLikeCredential = true;
+                         break;
+                     }
+                 }
+
+                 // Conditions to substitute:
+                 // 1. Explicit Email or Tel type
+                 // 2. Text or Number type AND looks like a credential field (keyword match)
+                 // 3. Text or Number type AND is the very first event (fallback heuristic)
+                 if (isEmailType || isPhoneType ||
+                    ((isTextType || isNumberType) && looksLikeCredential) ||
+                    ((isTextType || isNumberType) && !looksLikeCredential && index === 0)) {
+
+                      console.log("Substituting Email/Phone");
                       valToSet = overrideEmail;
                  }
             }
