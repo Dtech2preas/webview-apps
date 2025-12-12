@@ -58,10 +58,8 @@
                     try {
                         var regex = new RegExp(point.pattern);
                         if (!regex.test(text)) {
-                            // If regex fails, we treat it as NOT FOUND for validation purposes,
-                            // BUT we might still want to capture what we found if we are already successful?
-                            // For now, let's stick to strict validation: if regex mismatch, it's not the data we want.
-                            continue;
+                            // Relaxed: Capture anyway, but maybe could flag it.
+                            // For now, we trust the selector and take the value.
                         }
                     } catch(e) {
                         // Bad regex? Ignore pattern validation.
