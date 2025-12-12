@@ -80,6 +80,30 @@ public class ServiceRepository {
         }
     }
 
+    public String exportService(String id) {
+        ServiceData s = getServiceById(id);
+        if (s == null) return null;
+        try {
+            return s.toJson().toString(2);
+        } catch (JSONException e) { return null; }
+    }
+
+    public boolean importService(String jsonString) {
+        try {
+            JSONObject obj = new JSONObject(jsonString);
+            ServiceData s = ServiceData.fromJson(obj);
+            // Regenerate ID to avoid conflicts or keep it? User wants to import "a service".
+            // If I import, I probably want a copy.
+            // Let's modify the ID and append "(Imported)" to name to be safe.
+            s.id = java.util.UUID.randomUUID().toString();
+            s.name = s.name + " (Imported)";
+            addOrUpdateService(s);
+            return true;
+        } catch (JSONException e) {
+            return false;
+        }
+    }
+
     public ServiceData getServiceById(String id) {
         for (ServiceData s : services) {
             if (s.getId().equals(id)) return s;
@@ -107,6 +131,7 @@ public class ServiceRepository {
         private List<String> failureKeywords;
         private List<ExtractionPoint> extractionPoints;
         private String scriptJson; // Stored as string to avoid repeated parsing
+        private String userAgent;
 
         public ServiceData(String id, String name, String loginUrl) {
             this.id = id;
@@ -116,6 +141,7 @@ public class ServiceRepository {
             this.failureKeywords = new ArrayList<>();
             this.extractionPoints = new ArrayList<>();
             this.scriptJson = "[]";
+            this.userAgent = "";
         }
 
         public JSONObject toJson() throws JSONException {
@@ -126,6 +152,7 @@ public class ServiceRepository {
             obj.put("successUrl", successUrl);
             obj.put("successSelector", successSelector);
             obj.put("scriptJson", scriptJson);
+            obj.put("userAgent", userAgent);
 
             JSONArray sKeywords = new JSONArray();
             for(String k : successKeywords) sKeywords.put(k);
@@ -151,6 +178,7 @@ public class ServiceRepository {
             if (obj.has("successUrl")) s.successUrl = obj.getString("successUrl");
             if (obj.has("successSelector")) s.successSelector = obj.getString("successSelector");
             if (obj.has("scriptJson")) s.scriptJson = obj.getString("scriptJson");
+            if (obj.has("userAgent")) s.userAgent = obj.getString("userAgent");
 
             if (obj.has("successKeywords")) {
                 JSONArray k = obj.getJSONArray("successKeywords");
@@ -178,6 +206,7 @@ public class ServiceRepository {
         // Getters and Setters
         public String getId() { return id; }
         public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
         public String getLoginUrl() { return loginUrl; }
         public String getSuccessUrl() { return successUrl; }
         public void setSuccessUrl(String url) { this.successUrl = url; }
@@ -191,6 +220,8 @@ public class ServiceRepository {
         public void setExtractionPoints(List<ExtractionPoint> points) { this.extractionPoints = points; }
         public String getScriptJson() { return scriptJson; }
         public void setScriptJson(String json) { this.scriptJson = json; }
+        public String getUserAgent() { return userAgent; }
+        public void setUserAgent(String ua) { this.userAgent = ua; }
     }
 
     public static class ExtractionPoint {
