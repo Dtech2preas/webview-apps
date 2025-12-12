@@ -19,9 +19,9 @@
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning">
 
-        <!-- Main Activity (Home screen) -->
+        <!-- Dashboard Activity (New Home screen) -->
         <activity
-            android:name=".MainActivity"
+            android:name=".DashboardActivity"
             android:exported="true"
             android:configChanges="orientation|screenSize">
             <intent-filter>
@@ -29,6 +29,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Main Activity -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize">
+            <!-- Launcher intent removed -->
+        </activity>
+
+        <!-- Results History -->
+        <activity android:name=".ResultsHistoryActivity"
+                  android:configChanges="orientation|screenSize" />
 
         <!-- Ad Activity (Popup) -->
         <activity android:name=".AdActivity"

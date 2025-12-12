@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#121212"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Results History"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- Chart Area -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/bg_card"
+        android:padding="16dp"
+        android:layout_marginBottom="16dp">
+
+        <com.dtech.automation.PieChartView
+            android:id="@+id/pie_chart"
+            android:layout_width="150dp"
+            android:layout_height="150dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingLeft="16dp">
+
+            <TextView android:id="@+id/tv_total_stats"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Total Runs: 0"
+                android:textColor="#FFFFFF" />
+            <TextView android:id="@+id/tv_success_stats"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Success: 0"
+                android:textColor="#4CAF50" />
+            <TextView android:id="@+id/tv_fail_stats"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Failures: 0"
+                android:textColor="#F44336" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <ListView
+        android:id="@+id/list_history"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@drawable/bg_card"
+        android:padding="8dp"/>
+
+</LinearLayout>

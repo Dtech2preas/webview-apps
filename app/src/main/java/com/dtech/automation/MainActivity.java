@@ -65,6 +65,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     // Current Service
     private ServiceRepository serviceRepo;
     private ServiceRepository.ServiceData currentService;
+    private static final int REQUEST_CODE_IMPORT_JSON = 1001;
 
     // Batch Execution State
     private List<String> credentialList = new ArrayList<>();
@@ -74,6 +75,11 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     private boolean useCoordinateMode = false;
     private int verificationAttempts = 0;
     private static final int MAX_VERIFICATION_ATTEMPTS = 20;
+
+    // Batch Stats for History
+    private int batchSuccessCount = 0;
+    private int batchFailureCount = 0;
+    private String batchLogFileName;
 
     private List<JSONObject> currentSessionEvents = Collections.synchronizedList(new ArrayList<>());
 
@@ -117,7 +123,22 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         setupButtons();
         setupScannerUI();
 
-        loadLastService();
+        // Handle Intent from Dashboard
+        if (getIntent().hasExtra("SERVICE_ID")) {
+            String id = getIntent().getStringExtra("SERVICE_ID");
+            ServiceRepository.ServiceData s = serviceRepo.getServiceById(id);
+            if (s != null) {
+                onServiceSelected(s);
+                if (getIntent().getBooleanExtra("AUTO_START", false)) {
+                     // Optionally auto-click play, but let's just load the service
+                }
+            } else {
+                loadLastService();
+            }
+        } else {
+            loadLastService();
+        }
+
         startAdChecker();
         startPromoScheduler();
     }
@@ -441,10 +462,50 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             currentSessionEvents.clear();
         }
 
+        // Apply Custom User Agent if present
+        if (service.getUserAgent() != null && !service.getUserAgent().isEmpty()) {
+            mWebView.getSettings().setUserAgentString(service.getUserAgent());
+        } else {
+            // Reset to default if needed, or keep system default
+            mWebView.getSettings().setUserAgentString(WebSettings.getDefaultUserAgent(this));
+        }
+
         if (isConnected()) {
             mWebView.loadUrl(service.getLoginUrl());
         } else {
             showOfflineDialog();
+        }
+    }
+
+    public void initiateImport() {
+        android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json"); // Or text/plain
+        startActivityForResult(intent, REQUEST_CODE_IMPORT_JSON);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_CODE_IMPORT_JSON && resultCode == Activity.RESULT_OK) {
+            if (data != null && data.getData() != null) {
+                try {
+                    InputStream is = getContentResolver().openInputStream(data.getData());
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) sb.append(line);
+
+                    if (serviceRepo.importService(sb.toString())) {
+                        Toast.makeText(this, "Service Imported Successfully!", Toast.LENGTH_SHORT).show();
+                        showServiceSelection(); // Refresh list
+                    } else {
+                        Toast.makeText(this, "Import Failed: Invalid JSON", Toast.LENGTH_SHORT).show();
+                    }
+                } catch (Exception e) {
+                    Toast.makeText(this, "Import Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            }
         }
     }
 
@@ -781,6 +842,11 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         isBatchRunning = true;
         useCoordinateMode = false; // Default to smart logic
 
+        // Init Stats
+        batchSuccessCount = 0;
+        batchFailureCount = 0;
+        batchLogFileName = "run_" + System.currentTimeMillis() + ".txt";
+
         // Check for resume
         SharedPreferences autoPrefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         int savedIndex = autoPrefs.getInt(KEY_BATCH_INDEX, 0);
@@ -815,6 +881,18 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     }
 
     private void stopBatch() {
+        if (isBatchRunning) {
+            // Save History Record
+            BatchResultRepository repo = new BatchResultRepository(this);
+            repo.saveRun(new BatchResultRepository.BatchRun(
+                System.currentTimeMillis(),
+                currentService != null ? currentService.getName() : "Unknown",
+                batchSuccessCount,
+                batchFailureCount,
+                batchLogFileName
+            ));
+        }
+
         isBatchRunning = false;
         isReplaying = false;
         isWaitingForNext = false;
@@ -1082,6 +1160,8 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         String cred = credentialList.get(index);
         String status = success ? "SUCCESS" : "FAILURE";
 
+        if (success) batchSuccessCount++; else batchFailureCount++;
+
         // Format: STATUS|SERVICE_NAME|email:pass | detail (powered by DTECH)
         String serviceName = currentService != null ? currentService.getName() : "Unknown";
         String extra = detail != null ? detail : "";
@@ -1122,9 +1202,17 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
 
     private void saveResultToFile(String resultLine) {
         try {
+            // Save to generic cumulative log (Legacy)
             java.io.FileOutputStream fos = openFileOutput("batch_results.txt", MODE_APPEND);
             fos.write((resultLine + "\n").getBytes());
             fos.close();
+
+            // Save to specific run log (New System)
+            if (batchLogFileName != null) {
+                java.io.FileOutputStream fos2 = openFileOutput(batchLogFileName, MODE_APPEND);
+                fos2.write((resultLine + "\n").getBytes());
+                fos2.close();
+            }
         } catch (IOException e) { Log.e(TAG, "Save failed", e); }
     }
 
