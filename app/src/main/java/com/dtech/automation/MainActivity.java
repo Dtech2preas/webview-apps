@@ -1148,9 +1148,15 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
                 // Check if new format: STATUS|SERVICE|CONTENT
                 if (parts.length >= 3) {
                     svc = parts[1];
-                    // Reconstruct content without the pipes if desired, or keep raw
-                    // Let's keep a cleaner display format: STATUS content
-                    content = parts[0] + " " + parts[2];
+                    // Reconstruct content to include EVERYTHING after the service name
+                    // Parts: 0=Status, 1=Service, 2=Creds, 3+=Extracted
+                    StringBuilder fullContent = new StringBuilder();
+                    fullContent.append(parts[0]).append(" "); // Status
+                    for (int i = 2; i < parts.length; i++) {
+                        fullContent.append(parts[i]);
+                        if (i < parts.length - 1) fullContent.append("|");
+                    }
+                    content = fullContent.toString();
                 }
 
                 if (!groups.containsKey(svc)) groups.put(svc, new ArrayList<>());
@@ -1181,14 +1187,15 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     }
 
     private void showResultOptions(String rawResults, List<String> serviceNames) {
-        String[] options = {"Copy Success Only", "Clear Results"};
+        String[] options = {"Copy All (By Service)", "Copy Success Only (By Service)", "Clear Results"};
         new AlertDialog.Builder(this).setItems(options, (d, w) -> {
-            if (w == 0) showCopyOptions(rawResults, serviceNames);
-            else if (w == 1) { deleteFile("batch_results.txt"); Toast.makeText(this, "Cleared", Toast.LENGTH_SHORT).show(); }
+            if (w == 0) showCopyOptions(rawResults, serviceNames, false); // Copy All
+            else if (w == 1) showCopyOptions(rawResults, serviceNames, true); // Copy Success Only
+            else if (w == 2) { deleteFile("batch_results.txt"); Toast.makeText(this, "Cleared", Toast.LENGTH_SHORT).show(); }
         }).show();
     }
 
-    private void showCopyOptions(String rawResults, List<String> serviceNames) {
+    private void showCopyOptions(String rawResults, List<String> serviceNames, boolean successOnly) {
         // Add "All Services" to the list
         List<String> choices = new ArrayList<>();
         choices.add("All Services");
@@ -1197,18 +1204,18 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         String[] choiceArray = choices.toArray(new String[0]);
 
         new AlertDialog.Builder(this)
-            .setTitle("Copy from which service?")
+            .setTitle(successOnly ? "Copy Success from..." : "Copy All from...")
             .setItems(choiceArray, (d, w) -> {
                 String selected = choiceArray[w];
-                copySuccessResults(rawResults, selected);
+                copyResults(rawResults, selected, successOnly);
             })
             .show();
     }
 
-    private void copySuccessResults(String full, String targetService) {
+    private void copyResults(String full, String targetService, boolean successOnly) {
         StringBuilder sb = new StringBuilder();
         for (String line : full.split("\n")) {
-            if (!line.contains("SUCCESS")) continue;
+            if (successOnly && !line.contains("SUCCESS")) continue;
 
             String[] parts = line.split("\\|");
             // Format: STATUS|SERVICE|CONTENT or OldFormat
@@ -1216,7 +1223,17 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             if (parts.length >= 3) {
                 String svc = parts[1];
                 if (targetService.equals("All Services") || targetService.equals(svc)) {
-                    sb.append(parts[2]).append("\n");
+                    // Reconstruct full content skipping service name for cleanliness, or keep raw?
+                    // User requested "SUCCESS | ServiceName | email:pass | Balance..." in their text example
+                    // But usually "Copy" should copy the raw line or useful content.
+                    // Given the request for flexibility, let's copy the useful content (parts[2]+) + Status
+                    StringBuilder content = new StringBuilder();
+                    content.append(parts[0]).append("|").append(svc).append("|");
+                    for (int i = 2; i < parts.length; i++) {
+                        content.append(parts[i]);
+                        if (i < parts.length - 1) content.append("|");
+                    }
+                    sb.append(content.toString()).append("\n");
                 }
             } else {
                 // Handle legacy format (treat as General/All)
@@ -1226,11 +1243,11 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             }
         }
 
-        if (sb.length() == 0) { Toast.makeText(this, "No success results found for " + targetService, Toast.LENGTH_SHORT).show(); return; }
+        if (sb.length() == 0) { Toast.makeText(this, "No results found for " + targetService, Toast.LENGTH_SHORT).show(); return; }
 
         android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         cm.setPrimaryClip(android.content.ClipData.newPlainText("Results", sb.toString()));
-        Toast.makeText(this, "Copied Success Results", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Copied Results", Toast.LENGTH_SHORT).show();
     }
 
     private void shareResults(String res) {
