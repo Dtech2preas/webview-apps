@@ -12,9 +12,40 @@
 
     function getSelector(el) {
         if (!el || el.nodeType !== 1) return null;
-        // Avoid using IDs if they contain digits (often dynamic)
+
+        // --- STRATEGY 1: Stable ID ---
+        // Avoid using IDs if they contain digits (often dynamic like 'input-123')
         if (el.id && !/\d/.test(el.id)) return '#' + el.id;
 
+        // --- STRATEGY 2: Data Attributes (Gold Standard for Automation) ---
+        // These are often used by QA and are very stable.
+        var dataAttrs = ["data-testid", "data-test-id", "data-qa", "data-cy", "data-automation-id", "data-component"];
+        for (var i = 0; i < dataAttrs.length; i++) {
+            if (el.hasAttribute(dataAttrs[i])) {
+                var sel = '[' + dataAttrs[i] + '="' + el.getAttribute(dataAttrs[i]).replace(/"/g, '\\"') + '"]';
+                if (document.querySelectorAll(sel).length === 1) return sel;
+            }
+        }
+
+        // --- STRATEGY 3: Unique Name Attribute ---
+        // Especially useful for input fields. Must check uniqueness to avoid issues with radio buttons.
+        if (el.name && document.getElementsByName(el.name).length === 1) {
+             return '[name="' + el.name.replace(/"/g, '\\"') + '"]';
+        }
+
+        // --- STRATEGY 4: Accessibility Attributes ---
+        if (el.hasAttribute('aria-label')) {
+             var sel = '[aria-label="' + el.getAttribute('aria-label').replace(/"/g, '\\"') + '"]';
+             if (document.querySelectorAll(sel).length === 1) return sel;
+        }
+
+        // --- STRATEGY 5: Placeholder ---
+        if (el.placeholder) {
+             var sel = '[placeholder="' + el.placeholder.replace(/"/g, '\\"') + '"]';
+             if (document.querySelectorAll(sel).length === 1) return sel;
+        }
+
+        // --- STRATEGY 6: Path Fallback (Original Logic) ---
         var path = [];
         var current = el;
         while (current && current.nodeType === 1) {
