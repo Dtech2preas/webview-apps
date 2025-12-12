@@ -560,7 +560,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     private void showPostSuccessDialog(String reason, boolean forceManual) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this)
              .setTitle("Success Verification")
-             .setMessage(reason + "\n\nPlease use the Scanner tool to select something unique on this page (like your Balance or Profile Name).")
+             .setMessage(reason + "\n\nPlease use the Scanner tool to select something unique on this page (like your Balance or Profile Name).\n\nIf you do this, the app can copy this data for you in the results!")
              .setPositiveButton("Open Scanner", (d, w) -> openScannerOverlay())
              .setCancelable(false);
 
@@ -591,8 +591,8 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
 
     private void askToExtractData() {
         new AlertDialog.Builder(this)
-            .setTitle("Want to save data?")
-            .setMessage("Do you want to save specific info like Account Balance or Status?")
+            .setTitle("Step 3: Choose Result Data")
+            .setMessage("Do you want to save specific info (like the Account Balance) in your results file?\n\nIf you select 'Yes', you can pick an element on the screen. The app will then copy that text for every successful login.")
             .setPositiveButton("Yes", (d, w) -> openScannerOverlay())
             .setNegativeButton("No, I'm done", (d, w) -> {
                 recordingMode = RECORD_MODE_NONE;
@@ -991,13 +991,21 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
                              // Format extraction
                              StringBuilder sb = new StringBuilder();
                              java.util.Iterator<String> keys = ext.keys();
-                             while(keys.hasNext()) {
-                                 String key = keys.next();
-                                 sb.append(" | ").append(key).append(": ").append(ext.getString(key));
+                             if (keys.hasNext()) {
+                                 while(keys.hasNext()) {
+                                     String key = keys.next();
+                                     sb.append(" | ").append(key).append(": ").append(ext.getString(key));
+                                 }
+                                 extracted = sb.toString();
                              }
-                             extracted = sb.toString();
                          }
-                         logResult(true, res.optString("detail") + extracted, targetIndex);
+
+                         // If no data was extracted but the service EXPECTS data, note it.
+                         if (extracted.isEmpty() && currentService.getExtractionPoints() != null && !currentService.getExtractionPoints().isEmpty()) {
+                             extracted = " | Failed to catch data";
+                         }
+
+                         logResult(true, extracted, targetIndex);
                          moveToNext(targetIndex);
                      } else if ("failure".equals(status)) {
                          logResult(false, res.optString("detail"), targetIndex);
@@ -1074,9 +1082,10 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         String cred = credentialList.get(index);
         String status = success ? "SUCCESS" : "FAILURE";
 
-        // Format: STATUS|SERVICE_NAME|email:pass (powered by DTECH)
+        // Format: STATUS|SERVICE_NAME|email:pass | detail (powered by DTECH)
         String serviceName = currentService != null ? currentService.getName() : "Unknown";
-        String msg = status + "|" + serviceName + "|" + cred + " (powered by DTECH)";
+        String extra = detail != null ? detail : "";
+        String msg = status + "|" + serviceName + "|" + cred + extra + " (powered by DTECH)";
 
         Log.i(TAG, "Batch Result: " + msg);
         runOnUiThread(() -> Toast.makeText(this, status + ": " + cred, Toast.LENGTH_SHORT).show());
@@ -1089,9 +1098,9 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
              // Pause and ask user
              runOnUiThread(() -> {
                  new AlertDialog.Builder(this)
-                     .setTitle("First Account Check")
-                     .setMessage("Account #1 processed.\n\nWas the login accurate and successful?")
-                     .setPositiveButton("Yes, Continue", (d, w) -> {
+                     .setTitle("Did the automation work?")
+                     .setMessage("Please confirm:\n1. Did the app type the email and password?\n2. Did it click the login button?\n\n(Select 'Yes' even if the password was wrong/invalid. We are checking if the *typing* worked.)")
+                     .setPositiveButton("Yes", (d, w) -> {
                          // Proceed
                          moveToNext(index);
                      })
