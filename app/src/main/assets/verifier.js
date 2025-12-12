@@ -41,7 +41,8 @@
 
     // SUCCESS CHECK (Priority: ExtractionPoints > Selector > Keywords > URL)
 
-    // 0. Extraction Points (If any exist, they are strong indicators)
+    // 0. Extraction Points (Attempt extraction regardless of success logic)
+    // We try to extract data first so it's available for ALL success paths.
     var extractedData = {};
     var foundExtractionPoints = false;
 
@@ -57,14 +58,9 @@
                     try {
                         var regex = new RegExp(point.pattern);
                         if (!regex.test(text)) {
-                            // Found element but pattern mismatch?
-                            // User asked: "if it's numbers just record the balance"
-                            // So we should probably still accept it if it exists, but maybe log a warning?
-                            // Or better: the regex is meant to VALIDATE success.
-                            // If user says "Balance: \d+", and we see "Error", it should NOT match.
-                            // But if we see "Balance: 123", it matches.
-
-                            // If regex fails, we treat it as NOT FOUND (so we don't count this point as success yet)
+                            // If regex fails, we treat it as NOT FOUND for validation purposes,
+                            // BUT we might still want to capture what we found if we are already successful?
+                            // For now, let's stick to strict validation: if regex mismatch, it's not the data we want.
                             continue;
                         }
                     } catch(e) {
@@ -80,13 +76,17 @@
         }
     }
 
-    if (foundExtractionPoints) {
-         // If we found the data the user wanted, that's a success
-         return JSON.stringify({
+    // Helper to return success with extracted data
+    function returnSuccess(detail) {
+        return JSON.stringify({
              status: "success",
-             detail: "Extracted data points found",
+             detail: detail,
              extractedData: extractedData
          });
+    }
+
+    if (foundExtractionPoints) {
+         return returnSuccess("Extracted data points found");
     }
 
     // 1. Specific Element Selector
@@ -96,7 +96,7 @@
              // Check visibility? Maybe optional, but existence is usually enough for SPA state
              var style = window.getComputedStyle(el);
              if (style.display !== 'none' && style.visibility !== 'hidden') {
-                 return JSON.stringify({ status: "success", detail: "Success element found: " + successSelector });
+                 return returnSuccess("Success element found: " + successSelector);
              }
         }
     }
@@ -112,7 +112,7 @@
         }
         // If we found the keywords, that's a success
         if (allFound) {
-             return JSON.stringify({ status: "success", detail: "Success keywords found" });
+             return returnSuccess("Success keywords found");
         }
     }
 
@@ -128,7 +128,7 @@
 
         // Check for exact match or if current URL starts with target (e.g. /dashboard -> /dashboard/home)
         if (cleanCurrent === cleanTarget || cleanCurrent.startsWith(cleanTarget)) {
-            return JSON.stringify({ status: "success", detail: "Target URL reached" });
+            return returnSuccess("Target URL reached");
         }
     }
 
@@ -140,7 +140,7 @@
 
          // If we are NOT on the login page anymore, assume success
          if (cleanCurrent !== cleanLogin) {
-             return JSON.stringify({ status: "success", detail: "URL Changed (No Verification Set)" });
+             return returnSuccess("URL Changed (No Verification Set)");
          }
     }
 
