@@ -1148,9 +1148,18 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
                 // Check if new format: STATUS|SERVICE|CONTENT
                 if (parts.length >= 3) {
                     svc = parts[1];
-                    // Reconstruct content without the pipes if desired, or keep raw
-                    // Let's keep a cleaner display format: STATUS content
-                    content = parts[0] + " " + parts[2];
+                    // Robust Content Reconstruction:
+                    // Find the second pipe to start the content, effectively capturing EVERYTHING after service name.
+                    // Format: STATUS|SERVICE|CONTENT...
+                    int firstPipe = line.indexOf('|');
+                    int secondPipe = (firstPipe != -1) ? line.indexOf('|', firstPipe + 1) : -1;
+
+                    if (secondPipe != -1) {
+                         String rawContent = line.substring(secondPipe + 1);
+                         content = parts[0] + " " + rawContent;
+                    } else {
+                         content = parts[0] + " " + parts[2];
+                    }
                 }
 
                 if (!groups.containsKey(svc)) groups.put(svc, new ArrayList<>());
@@ -1216,7 +1225,14 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             if (parts.length >= 3) {
                 String svc = parts[1];
                 if (targetService.equals("All Services") || targetService.equals(svc)) {
-                    sb.append(parts[2]).append("\n");
+                     // Robust Capture: Get everything after the second pipe
+                     int firstPipe = line.indexOf('|');
+                     int secondPipe = (firstPipe != -1) ? line.indexOf('|', firstPipe + 1) : -1;
+                     if (secondPipe != -1) {
+                         sb.append(line.substring(secondPipe + 1)).append("\n");
+                     } else {
+                         sb.append(parts[2]).append("\n");
+                     }
                 }
             } else {
                 // Handle legacy format (treat as General/All)
