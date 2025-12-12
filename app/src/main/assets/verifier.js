@@ -106,9 +106,15 @@
     if (successSelector && successSelector.length > 0) {
         var el = document.querySelector(successSelector);
         if (el) {
-             // Check visibility? Maybe optional, but existence is usually enough for SPA state
+             // Robust Visibility Check for Hidden Elements (e.g., Pop-ups, SPAs)
              var style = window.getComputedStyle(el);
-             if (style.display !== 'none' && style.visibility !== 'hidden') {
+             var isVisible = style.display !== 'none' &&
+                             style.visibility !== 'hidden' &&
+                             style.opacity !== '0' &&
+                             el.offsetWidth > 0 &&
+                             el.offsetHeight > 0;
+
+             if (isVisible) {
                  return returnSuccess("Success element found: " + successSelector);
              }
         }
@@ -135,13 +141,20 @@
 
     // Standard Target URL Check
     if (!hasSpecificSuccessLogic && targetSuccessUrl && targetSuccessUrl.length > 5) {
-        // Strip trailing slashes for comparison
-        var cleanCurrent = currentUrl.replace(/\/$/, "").toLowerCase();
-        var cleanTarget = targetSuccessUrl.replace(/\/$/, "").toLowerCase();
+        // Strip trailing slashes and query params for comparison
+        var cleanCurrent = currentUrl.split('?')[0].replace(/\/$/, "").toLowerCase();
+        var cleanTarget = targetSuccessUrl.split('?')[0].replace(/\/$/, "").toLowerCase();
+        var cleanLogin = loginUrl.split('?')[0].replace(/\/$/, "").toLowerCase();
 
-        // Check for exact match or if current URL starts with target (e.g. /dashboard -> /dashboard/home)
-        if (cleanCurrent === cleanTarget || cleanCurrent.startsWith(cleanTarget)) {
-            return returnSuccess("Target URL reached");
+        // Same URL Detection: If the Target Success URL is essentially the same as the Login URL,
+        // we CANNOT rely on URL matching for success, because we start at the login URL.
+        var isSameUrlScenario = (cleanLogin === cleanTarget);
+
+        if (!isSameUrlScenario) {
+            // Check for exact match or if current URL starts with target (e.g. /dashboard -> /dashboard/home)
+            if (cleanCurrent === cleanTarget || cleanCurrent.startsWith(cleanTarget)) {
+                return returnSuccess("Target URL reached");
+            }
         }
     }
 
