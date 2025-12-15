@@ -133,6 +133,10 @@ public class ServiceRepository {
         private String scriptJson; // Stored as string to avoid repeated parsing
         private String userAgent;
 
+        // OCR Validation Fields
+        private String successOcrText;
+        private float successOcrX, successOcrY, successOcrW, successOcrH;
+
         public ServiceData(String id, String name, String loginUrl) {
             this.id = id;
             this.name = name;
@@ -153,6 +157,14 @@ public class ServiceRepository {
             obj.put("successSelector", successSelector);
             obj.put("scriptJson", scriptJson);
             obj.put("userAgent", userAgent);
+
+            if (successOcrText != null) {
+                obj.put("successOcrText", successOcrText);
+                obj.put("successOcrX", (double)successOcrX);
+                obj.put("successOcrY", (double)successOcrY);
+                obj.put("successOcrW", (double)successOcrW);
+                obj.put("successOcrH", (double)successOcrH);
+            }
 
             JSONArray sKeywords = new JSONArray();
             for(String k : successKeywords) sKeywords.put(k);
@@ -179,6 +191,14 @@ public class ServiceRepository {
             if (obj.has("successSelector")) s.successSelector = obj.getString("successSelector");
             if (obj.has("scriptJson")) s.scriptJson = obj.getString("scriptJson");
             if (obj.has("userAgent")) s.userAgent = obj.getString("userAgent");
+
+            if (obj.has("successOcrText")) {
+                s.successOcrText = obj.getString("successOcrText");
+                s.successOcrX = (float)obj.optDouble("successOcrX", 0);
+                s.successOcrY = (float)obj.optDouble("successOcrY", 0);
+                s.successOcrW = (float)obj.optDouble("successOcrW", 0);
+                s.successOcrH = (float)obj.optDouble("successOcrH", 0);
+            }
 
             if (obj.has("successKeywords")) {
                 JSONArray k = obj.getJSONArray("successKeywords");
@@ -222,6 +242,19 @@ public class ServiceRepository {
         public void setScriptJson(String json) { this.scriptJson = json; }
         public String getUserAgent() { return userAgent; }
         public void setUserAgent(String ua) { this.userAgent = ua; }
+
+        public String getSuccessOcrText() { return successOcrText; }
+        public void setSuccessOcrText(String text) { this.successOcrText = text; }
+        public float getSuccessOcrX() { return successOcrX; }
+        public float getSuccessOcrY() { return successOcrY; }
+        public float getSuccessOcrW() { return successOcrW; }
+        public float getSuccessOcrH() { return successOcrH; }
+        public void setSuccessOcrRect(float x, float y, float w, float h) {
+            this.successOcrX = x;
+            this.successOcrY = y;
+            this.successOcrW = w;
+            this.successOcrH = h;
+        }
     }
 
     public static class ExtractionPoint {

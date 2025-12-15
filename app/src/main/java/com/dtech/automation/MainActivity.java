@@ -52,6 +52,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     private Button btnScanSizeInc, btnScanSizeDec;
     private float dX, dY;
     private List<ServiceRepository.ExtractionPoint> tempExtractionPoints = new ArrayList<>();
+    private boolean isScanningForValidation = false;
 
     // --- Recording State Machine ---
     private static final int RECORD_MODE_NONE = 0;
@@ -255,27 +256,23 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         });
 
         btnScanCatch.setOnClickListener(v -> {
-            // Calculate center of box relative to WebView
+            // Calculate Top-Left of box relative to WebView
             int[] webViewLoc = new int[2];
             mWebView.getLocationOnScreen(webViewLoc);
 
             int[] boxLoc = new int[2];
             draggableBox.getLocationOnScreen(boxLoc);
 
-            // Center of box
-            float centerX = boxLoc[0] + (draggableBox.getWidth() / 2f);
-            float centerY = boxLoc[1] + (draggableBox.getHeight() / 2f);
+            // Top-Left relative to WebView
+            float relX = boxLoc[0] - webViewLoc[0];
+            float relY = boxLoc[1] - webViewLoc[1];
 
-            // Relative to WebView
-            float relX = centerX - webViewLoc[0];
-            float relY = centerY - webViewLoc[1];
+            // Adjust for scrolling?
+            // Note: getLocationOnScreen returns absolute screen coordinates.
+            // mWebView.draw() draws the *visible* viewport.
+            // So if the box is over the visible area, these relative coords are correct for the captured bitmap.
 
-            // Convert to density pixels if needed, or JS pixels
-            float density = getResources().getDisplayMetrics().density;
-            float jsX = relX / density;
-            float jsY = relY / density;
-
-            // Calculate relative percentage coordinates
+            // Calculate relative percentage coordinates (Top-Left)
             float pctX = relX / mWebView.getWidth();
             float pctY = relY / mWebView.getHeight();
             float pctW = draggableBox.getWidth() / (float) mWebView.getWidth();
@@ -283,7 +280,11 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
 
             performOcr(pctX, pctY, pctW, pctH, text -> {
                 if (text != null && !text.isEmpty()) {
-                    showLabelDialog("", text, pctX, pctY, pctW, pctH);
+                    if (isScanningForValidation) {
+                        showValidationConfirmDialog(text, pctX, pctY, pctW, pctH);
+                    } else {
+                        showLabelDialog("", text, pctX, pctY, pctW, pctH);
+                    }
                 } else {
                     Toast.makeText(this, "OCR Failed to detect text", Toast.LENGTH_SHORT).show();
                 }
@@ -694,8 +695,51 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
 
     private void openScannerOverlay() {
         tempExtractionPoints.clear();
+        isScanningForValidation = false;
         overlayScanner.setVisibility(android.view.View.VISIBLE);
         Toast.makeText(this, "Scanner Mode Active", Toast.LENGTH_SHORT).show();
+    }
+
+    private void openScannerForValidation() {
+        tempExtractionPoints.clear();
+        isScanningForValidation = true;
+        overlayScanner.setVisibility(android.view.View.VISIBLE);
+        Toast.makeText(this, "Validation Mode: Capture Success Text", Toast.LENGTH_LONG).show();
+
+        // Explain to user
+        new AlertDialog.Builder(this)
+            .setTitle("Validation Capture")
+            .setMessage("Drag the box over a text that ONLY appears when logged in (e.g. 'Welcome User', 'Balance: $0').\n\nClick 'Catch' to save it.")
+            .setPositiveButton("OK", null)
+            .show();
+    }
+
+    private void showValidationConfirmDialog(String text, float x, float y, float w, float h) {
+        new AlertDialog.Builder(this)
+            .setTitle("Confirm Validation Text")
+            .setMessage("Text: \"" + text + "\"\n\nIs this the text we should look for to confirm success?")
+            .setPositiveButton("Yes, Save", (d, which) -> {
+                // Save to Service Data
+                currentService.setSuccessOcrText(text);
+                currentService.setSuccessOcrRect(x, y, w, h);
+
+                // Clear other criteria to avoid conflicts/confusion
+                currentService.setSuccessSelector(null);
+                currentService.setSuccessKeywords(new ArrayList<>());
+
+                serviceRepo.addOrUpdateService(currentService);
+
+                Toast.makeText(this, "Success Criteria Saved!", Toast.LENGTH_SHORT).show();
+                overlayScanner.setVisibility(android.view.View.GONE);
+                isScanningForValidation = false;
+
+                // Proceed to next step
+                recordingMode = RECORD_MODE_NONE;
+                btnStop.setVisibility(android.view.View.GONE);
+                startRecordingPhase2();
+            })
+            .setNegativeButton("No, Try Again", null)
+            .show();
     }
 
     private void enableManualSelectionMode() {
@@ -760,41 +804,19 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             JSONArray arr = new JSONArray(currentSessionEvents);
             currentService.setScriptJson(arr.toString());
 
-            // Analyze page for success indicators
-            mWebView.evaluateJavascript("window.analyzeSuccessState()", value -> {
-                 List<String> foundKeywords = new ArrayList<>();
-                 try {
-                     // value might be double encoded like "\"['logout']\"" or just "['logout']"
-                     String jsonStr = value;
-                     if (jsonStr != null && jsonStr.length() > 2 && jsonStr.startsWith("\"") && jsonStr.endsWith("\"")) {
-                         // Remove outer quotes and unescape
-                         jsonStr = jsonStr.substring(1, jsonStr.length() - 1).replace("\\\"", "\"");
-                     }
-
-                     JSONArray json = new JSONArray(jsonStr);
-                     for(int i=0; i<json.length(); i++) foundKeywords.add(json.getString(i));
-                 } catch (Exception e) {
-                     Log.e(TAG, "Error parsing success keywords", e);
-                 }
-
-                 // Check if URL changed significantly
-                 boolean urlChanged = !currentUrl.split("\\?")[0].equals(recordingStartUrl.split("\\?")[0]);
-
-                 if (foundKeywords.isEmpty()) {
-                     // No auto-keywords found. Ask user to select manually.
-                     // If URL didn't change, we FORCE manual selection.
-                     if (!urlChanged) {
-                         showPostSuccessDialog("The URL did not change after login.", true);
-                     } else {
-                         showPostSuccessDialog("No common success indicators found.", false);
-                     }
-                 } else {
-                     // Found keywords. Ask user to confirm.
-                     // Even if keywords found, if URL didn't change, we should be careful.
-                     // But keywords are usually good enough if they are "Logout" or "My Account".
-                     showKeywordConfirmationDialog(foundKeywords);
-                 }
-            });
+            // Ask user for verification method
+            new AlertDialog.Builder(this)
+                .setTitle("Verify Success")
+                .setMessage("How do you want to verify successful login in the future?")
+                .setPositiveButton("Scan Text (OCR)", (d, w) -> {
+                     openScannerForValidation();
+                })
+                .setNegativeButton("Auto (URL/DOM)", (d, w) -> {
+                    // Legacy logic
+                    analyzeSuccessState(currentUrl);
+                })
+                .setCancelable(false)
+                .show();
 
         } else if (recordingMode == RECORD_MODE_FAILURE) {
             // Analyze Failure State
@@ -835,6 +857,42 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     }
 
     // --- Batch Replay Logic ---
+
+    private void analyzeSuccessState(String currentUrl) {
+            // Analyze page for success indicators
+            mWebView.evaluateJavascript("window.analyzeSuccessState()", value -> {
+                 List<String> foundKeywords = new ArrayList<>();
+                 try {
+                     // value might be double encoded like "\"['logout']\"" or just "['logout']"
+                     String jsonStr = value;
+                     if (jsonStr != null && jsonStr.length() > 2 && jsonStr.startsWith("\"") && jsonStr.endsWith("\"")) {
+                         // Remove outer quotes and unescape
+                         jsonStr = jsonStr.substring(1, jsonStr.length() - 1).replace("\\\"", "\"");
+                     }
+
+                     JSONArray json = new JSONArray(jsonStr);
+                     for(int i=0; i<json.length(); i++) foundKeywords.add(json.getString(i));
+                 } catch (Exception e) {
+                     Log.e(TAG, "Error parsing success keywords", e);
+                 }
+
+                 // Check if url changed significantly
+                 boolean urlChanged = !currentUrl.split("\\?")[0].equals(recordingStartUrl.split("\\?")[0]);
+
+                 if (foundKeywords.isEmpty()) {
+                     // No auto-keywords found. Ask user to select manually.
+                     // If URL didn't change, we FORCE manual selection.
+                     if (!urlChanged) {
+                         showPostSuccessDialog("The URL did not change after login.", true);
+                     } else {
+                         showPostSuccessDialog("No common success indicators found.", false);
+                     }
+                 } else {
+                     // Found keywords. Ask user to confirm.
+                     showKeywordConfirmationDialog(foundKeywords);
+                 }
+            });
+    }
 
     private void startBatchReplay() {
         if (currentService == null) {
@@ -1043,6 +1101,34 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         }
         verificationAttempts++;
 
+        // Priority 1: OCR Validation (if configured)
+        if (currentService.getSuccessOcrText() != null && !currentService.getSuccessOcrText().isEmpty()) {
+            performOcr(currentService.getSuccessOcrX(), currentService.getSuccessOcrY(),
+                       currentService.getSuccessOcrW(), currentService.getSuccessOcrH(), text -> {
+
+                if (!isBatchRunning || targetIndex != currentCredentialIndex) return;
+
+                String expected = currentService.getSuccessOcrText().toLowerCase();
+                String actual = text.toLowerCase();
+
+                // Fuzzy match? Contains?
+                if (actual.contains(expected) || (expected.length() > 5 && actual.contains(expected.substring(0, 5)))) {
+                    // Success!
+                    performBatchExtraction(targetIndex, " | Validated by OCR", 0);
+                } else {
+                     // If OCR fails, we can optionally check JS or just wait and retry.
+                     // The user implied OCR is the *main* way. But we can fallback to JS if OCR fails (maybe page hasn't loaded fully).
+                     // Let's run JS check as fallback.
+                     runJsVerification(targetIndex);
+                }
+            });
+        } else {
+             // Standard JS Verification
+             runJsVerification(targetIndex);
+        }
+    }
+
+    private void runJsVerification(int targetIndex) {
         String js = readAssetFile("verifier.js");
 
         // Inject Dynamic Configs from ServiceData
