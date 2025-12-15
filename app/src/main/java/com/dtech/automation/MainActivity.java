@@ -23,8 +23,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.text.Text;
 import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
+import java.util.regex.Pattern;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -783,6 +785,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             currentService.setSuccessKeywords(new ArrayList<>());
             currentService.setFailureKeywords(new ArrayList<>());
             currentService.setExtractionPoints(new ArrayList<>());
+            currentService.setUseOcrForSuccess(false);
 
             serviceRepo.addOrUpdateService(currentService);
 
@@ -804,56 +807,201 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             JSONArray arr = new JSONArray(currentSessionEvents);
             currentService.setScriptJson(arr.toString());
 
-            // Ask user for verification method
-            new AlertDialog.Builder(this)
-                .setTitle("Verify Success")
-                .setMessage("How do you want to verify successful login in the future?")
-                .setPositiveButton("Scan Text (OCR)", (d, w) -> {
-                     openScannerForValidation();
-                })
-                .setNegativeButton("Auto (URL/DOM)", (d, w) -> {
-                    // Legacy logic
-                    analyzeSuccessState(currentUrl);
-                })
-                .setCancelable(false)
-                .show();
+            // Trigger Full Page OCR for Text Selection
+            Toast.makeText(this, "Scanning page text...", Toast.LENGTH_SHORT).show();
+            performFullPageOcrForSelection();
 
         } else if (recordingMode == RECORD_MODE_FAILURE) {
-            // Analyze Failure State
-            mWebView.evaluateJavascript(
-                "(function(){ return document.body.innerText.toLowerCase(); })();",
-                value -> {
-                    List<String> keywords = new ArrayList<>();
-                    if (value != null) {
-                        // Simple heuristic: check for common words found in the text
-                        String text = value.toLowerCase();
-                        if (text.contains("invalid")) keywords.add("invalid");
-                        if (text.contains("incorrect")) keywords.add("incorrect");
-                        if (text.contains("error")) keywords.add("error");
-                        if (text.contains("failed")) keywords.add("failed");
-                        if (text.contains("check your")) keywords.add("check your");
-                        if (text.contains("try again")) keywords.add("try again");
+            // Trigger Full Page OCR for Failure Selection
+            Toast.makeText(this, "Scanning page text...", Toast.LENGTH_SHORT).show();
+            performFullPageOcrForSelection();
+        }
+    }
+
+    private void performFullPageOcrForSelection() {
+        runOnUiThread(() -> {
+            try {
+                android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(mWebView.getWidth(), mWebView.getHeight(), android.graphics.Bitmap.Config.ARGB_8888);
+                android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
+
+                // Temporarily disable hardware acceleration for reliable capture
+                int originalLayerType = mWebView.getLayerType();
+                mWebView.setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null);
+                mWebView.draw(canvas);
+                mWebView.setLayerType(originalLayerType, null);
+
+                InputImage image = InputImage.fromBitmap(bitmap, 0);
+                TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                    .process(image)
+                    .addOnSuccessListener(visionText -> {
+                        showOcrSelectionDialog(visionText);
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(this, "OCR Failed", Toast.LENGTH_SHORT).show();
+                        if (recordingMode == RECORD_MODE_SUCCESS) {
+                            showPostSuccessDialog("OCR Failed. Use Manual Mode?", false);
+                        }
+                    });
+            } catch (Exception e) {
+                Log.e(TAG, "OCR Error", e);
+            }
+        });
+    }
+
+    private void showOcrSelectionDialog(Text visionText) {
+        List<Text.TextBlock> blocks = visionText.getTextBlocks();
+        List<String> textOptions = new ArrayList<>();
+        for (Text.TextBlock block : blocks) {
+            textOptions.add(block.getText().replace("\n", " ").trim());
+        }
+
+        if (textOptions.isEmpty()) {
+            Toast.makeText(this, "No text found on page.", Toast.LENGTH_SHORT).show();
+            if (recordingMode == RECORD_MODE_SUCCESS) openScannerOverlay(); // Fallback
+            return;
+        }
+
+        if (recordingMode == RECORD_MODE_SUCCESS) {
+            // Step 1: Select Success Logic
+            showMultiSelectDialog("Step 1: Select Success Logic", "Tap text that confirms you are logged in (e.g. 'Welcome'). Max 2.", textOptions, selectedIndices -> {
+                if (selectedIndices.size() > 2) {
+                    Toast.makeText(this, "Please select at most 2 items.", Toast.LENGTH_LONG).show();
+                    // Re-show? Or just warn? Let's just warn and truncate.
+                    while (selectedIndices.size() > 2) selectedIndices.remove(selectedIndices.size() - 1);
+                }
+
+                List<String> keywords = new ArrayList<>();
+                for (int idx : selectedIndices) {
+                    String raw = textOptions.get(idx);
+                    // Smart Logic: If contains numbers, strip them?
+                    // "Balance: 50.00" -> "Balance: "
+                    if (raw.matches(".*\\d.*")) {
+                         keywords.add(raw.replaceAll("[0-9.,]+", "").trim());
+                    } else {
+                         keywords.add(raw);
+                    }
+                }
+
+                // If nothing selected, maybe they want to skip?
+                currentService.setSuccessKeywords(keywords);
+                currentService.setUseOcrForSuccess(!keywords.isEmpty());
+                currentService.setSuccessSelector(null); // Clear manual selector
+                currentService.setSuccessOcrText(null); // Clear manual OCR
+
+                // Step 2: Select Extraction Data
+                showMultiSelectDialog("Step 2: Select Data to Extract", "Tap data to save in results (e.g. 'Balance').", textOptions, extractIndices -> {
+                    List<ServiceRepository.ExtractionPoint> points = new ArrayList<>();
+                    for (int idx : extractIndices) {
+                        com.google.mlkit.vision.text.Text.TextBlock block = blocks.get(idx);
+                        String raw = textOptions.get(idx);
+
+                        boolean hasDigits = raw.matches(".*\\d.*");
+                        String pattern = "";
+                        if (hasDigits) {
+                            // Smart Regex: Replace digits with placeholder, escape everything else, restore placeholder
+                            String temp = raw.replaceAll("\\d+", "___NUM___");
+
+                            // Robust escaping: Escape special regex characters
+                            // list: \ ^ $ . | ? * + ( ) [ ] { }
+                            // We use a simple loop or chained replace.
+                            // Note: replace() uses literal target, so we need to escape backslashes first.
+                            String escaped = temp
+                                .replace("\\", "\\\\")
+                                .replace("^", "\\^")
+                                .replace("$", "\\$")
+                                .replace(".", "\\.")
+                                .replace("|", "\\|")
+                                .replace("?", "\\?")
+                                .replace("*", "\\*")
+                                .replace("+", "\\+")
+                                .replace("(", "\\(")
+                                .replace(")", "\\)")
+                                .replace("[", "\\[")
+                                .replace("]", "\\]")
+                                .replace("{", "\\{")
+                                .replace("}", "\\}");
+
+                            pattern = escaped.replace("___NUM___", "\\d+");
+                        }
+
+                        // Calculate relative rect for this block
+                        android.graphics.Rect r = block.getBoundingBox();
+                        float pctX = 0, pctY = 0, pctW = 0, pctH = 0;
+                        if (r != null) {
+                            pctX = (float)r.left / mWebView.getWidth();
+                            pctY = (float)r.top / mWebView.getHeight();
+                            pctW = (float)r.width() / mWebView.getWidth();
+                            pctH = (float)r.height() / mWebView.getHeight();
+                        }
+
+                        // Use text as label initially
+                        String label = raw.length() > 15 ? raw.substring(0, 15) : raw;
+                        points.add(new ServiceRepository.ExtractionPoint(null, label, hasDigits, pattern, pctX, pctY, pctW, pctH));
                     }
 
-                    if (keywords.isEmpty()) {
-                        keywords.add("incorrect"); // Default fallback
-                        keywords.add("invalid");
-                    }
-
-                    currentService.setFailureKeywords(keywords);
+                    currentService.setExtractionPoints(points);
                     serviceRepo.addOrUpdateService(currentService);
 
-                    Toast.makeText(this, "Service Setup Complete!", Toast.LENGTH_LONG).show();
-
+                    Toast.makeText(this, "Success Setup Complete!", Toast.LENGTH_SHORT).show();
                     recordingMode = RECORD_MODE_NONE;
-                    btnRecord.setVisibility(android.view.View.VISIBLE);
                     btnStop.setVisibility(android.view.View.GONE);
-                    btnPlay.setVisibility(android.view.View.VISIBLE);
-
-                    // Reload clean
-                    mWebView.loadUrl(currentService.getLoginUrl());
+                    startRecordingPhase2();
                 });
+            });
+
+        } else if (recordingMode == RECORD_MODE_FAILURE) {
+            // Select one failure message
+            showMultiSelectDialog("Step 2: Select Failure Message", "Tap the error message (e.g. 'Invalid Password').", textOptions, selectedIndices -> {
+                List<String> keywords = new ArrayList<>();
+                for (int idx : selectedIndices) {
+                    keywords.add(textOptions.get(idx));
+                }
+                currentService.setFailureKeywords(keywords);
+                serviceRepo.addOrUpdateService(currentService);
+
+                Toast.makeText(this, "Service Setup Complete!", Toast.LENGTH_LONG).show();
+                recordingMode = RECORD_MODE_NONE;
+                btnRecord.setVisibility(android.view.View.VISIBLE);
+                btnStop.setVisibility(android.view.View.GONE);
+                btnPlay.setVisibility(android.view.View.VISIBLE);
+
+                mWebView.loadUrl(currentService.getLoginUrl());
+            });
         }
+    }
+
+    private void showMultiSelectDialog(String title, String message, List<String> items, OnSelectionListener listener) {
+        String[] itemArray = items.toArray(new String[0]);
+        boolean[] checkedItems = new boolean[items.size()];
+        List<Integer> selected = new ArrayList<>();
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(title);
+        // Custom title view to include message or just standard
+        // Default setMessage with setMultiChoiceItems is tricky in some versions, but standard is:
+        // Title -> MultiChoice -> Buttons. Message is often ignored if setMultiChoiceItems is used.
+        // We will put the instruction in the Title or use a custom view.
+        // Let's append instruction to title for simplicity.
+        builder.setTitle(title + "\n" + message);
+
+        builder.setMultiChoiceItems(itemArray, checkedItems, (dialog, which, isChecked) -> {
+            if (isChecked) selected.add(which);
+            else selected.remove(Integer.valueOf(which));
+        });
+
+        builder.setPositiveButton("Next", (dialog, which) -> listener.onSelected(selected));
+        builder.setNeutralButton("Manual Scan", (dialog, which) -> {
+             if (recordingMode == RECORD_MODE_SUCCESS) openScannerOverlay(); // Fallback
+             // For failure mode, we didn't implement manual scanner for keywords, but we can just skip or add a toast.
+             else Toast.makeText(this, "Manual scan only available for Success logic.", Toast.LENGTH_SHORT).show();
+        });
+
+        builder.setCancelable(false);
+        builder.show();
+    }
+
+    interface OnSelectionListener {
+        void onSelected(List<Integer> selectedIndices);
     }
 
     // --- Batch Replay Logic ---
@@ -1101,7 +1249,42 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
         }
         verificationAttempts++;
 
-        // Priority 1: OCR Validation (if configured)
+        // Priority 1: Full Page OCR Validation (Smart Logic)
+        if (currentService.isUseOcrForSuccess()) {
+             performOcr(0, 0, 1, 1, text -> {
+                 if (!isBatchRunning || targetIndex != currentCredentialIndex) return;
+
+                 boolean verified = false;
+                 List<String> keywords = currentService.getSuccessKeywords();
+                 String fullTextLower = text.toLowerCase();
+
+                 for (String key : keywords) {
+                     if (fullTextLower.contains(key.toLowerCase())) {
+                         verified = true;
+                         break;
+                     }
+                 }
+
+                 if (verified) {
+                      performBatchExtraction(targetIndex, " | Validated by Smart OCR", 0);
+                 } else {
+                      // OCR might need more time or element not visible yet. Retry via scheduler (already handled by caller if we don't succeed)
+                      // OR check if we hit max attempts
+                      // We can fall back to JS? Or just wait?
+                      // If 'useOcrForSuccess' is true, user EXPLICITLY chose OCR logic. We should trust it.
+                      // But maybe JS can help if OCR is flaky?
+                      // Let's rely on the retry mechanism.
+
+                      // However, if we fail OCR, we might want to check for Failure Keywords via OCR too?
+                      // Failure keywords are currently checked via JS in runJsVerification.
+                      // Let's perform a JS check just to see if we have failure or rate limit
+                      runJsVerification(targetIndex);
+                 }
+             });
+             return;
+        }
+
+        // Priority 2: Legacy OCR Validation (Specific Region)
         if (currentService.getSuccessOcrText() != null && !currentService.getSuccessOcrText().isEmpty()) {
             performOcr(currentService.getSuccessOcrX(), currentService.getSuccessOcrY(),
                        currentService.getSuccessOcrW(), currentService.getSuccessOcrH(), text -> {

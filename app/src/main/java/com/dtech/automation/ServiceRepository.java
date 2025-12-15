@@ -132,6 +132,7 @@ public class ServiceRepository {
         private List<ExtractionPoint> extractionPoints;
         private String scriptJson; // Stored as string to avoid repeated parsing
         private String userAgent;
+        private boolean useOcrForSuccess = false;
 
         // OCR Validation Fields
         private String successOcrText;
@@ -157,6 +158,7 @@ public class ServiceRepository {
             obj.put("successSelector", successSelector);
             obj.put("scriptJson", scriptJson);
             obj.put("userAgent", userAgent);
+            obj.put("useOcrForSuccess", useOcrForSuccess);
 
             if (successOcrText != null) {
                 obj.put("successOcrText", successOcrText);
@@ -191,6 +193,7 @@ public class ServiceRepository {
             if (obj.has("successSelector")) s.successSelector = obj.getString("successSelector");
             if (obj.has("scriptJson")) s.scriptJson = obj.getString("scriptJson");
             if (obj.has("userAgent")) s.userAgent = obj.getString("userAgent");
+            if (obj.has("useOcrForSuccess")) s.useOcrForSuccess = obj.getBoolean("useOcrForSuccess");
 
             if (obj.has("successOcrText")) {
                 s.successOcrText = obj.getString("successOcrText");
@@ -242,6 +245,9 @@ public class ServiceRepository {
         public void setScriptJson(String json) { this.scriptJson = json; }
         public String getUserAgent() { return userAgent; }
         public void setUserAgent(String ua) { this.userAgent = ua; }
+
+        public boolean isUseOcrForSuccess() { return useOcrForSuccess; }
+        public void setUseOcrForSuccess(boolean useOcr) { this.useOcrForSuccess = useOcr; }
 
         public String getSuccessOcrText() { return successOcrText; }
         public void setSuccessOcrText(String text) { this.successOcrText = text; }
