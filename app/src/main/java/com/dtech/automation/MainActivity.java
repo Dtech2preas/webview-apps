@@ -359,7 +359,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             .setTitle("Label this Element")
             .setMessage(msg)
             .setView(input)
-            .setPositiveButton("Save", (d, w) -> {
+            .setPositiveButton("Save", (d, which) -> {
                 String label = input.getText().toString().trim();
                 if (label.isEmpty()) label = "Data";
 
