@@ -229,18 +229,36 @@ public class ServiceRepository {
         private String label;
         private boolean isDynamic;
         private String pattern;
+        // OCR Coordinates (Percentages of WebView)
+        private float rectX;
+        private float rectY;
+        private float rectWidth;
+        private float rectHeight;
 
         public ExtractionPoint(String selector, String label, boolean isDynamic, String pattern) {
+            this(selector, label, isDynamic, pattern, 0, 0, 0, 0);
+        }
+
+        public ExtractionPoint(String selector, String label, boolean isDynamic, String pattern, float x, float y, float w, float h) {
             this.selector = selector;
             this.label = label;
             this.isDynamic = isDynamic;
             this.pattern = pattern;
+            this.rectX = x;
+            this.rectY = y;
+            this.rectWidth = w;
+            this.rectHeight = h;
         }
 
         public String getSelector() { return selector; }
         public String getLabel() { return label; }
         public boolean isDynamic() { return isDynamic; }
         public String getPattern() { return pattern; }
+        public float getRectX() { return rectX; }
+        public float getRectY() { return rectY; }
+        public float getRectWidth() { return rectWidth; }
+        public float getRectHeight() { return rectHeight; }
+        public boolean isOcr() { return rectWidth > 0; }
 
         public JSONObject toJson() throws JSONException {
             JSONObject obj = new JSONObject();
@@ -248,15 +266,23 @@ public class ServiceRepository {
             obj.put("label", label);
             obj.put("isDynamic", isDynamic);
             obj.put("pattern", pattern);
+            obj.put("rectX", (double)rectX);
+            obj.put("rectY", (double)rectY);
+            obj.put("rectWidth", (double)rectWidth);
+            obj.put("rectHeight", (double)rectHeight);
             return obj;
         }
 
         public static ExtractionPoint fromJson(JSONObject obj) throws JSONException {
             return new ExtractionPoint(
-                    obj.getString("selector"),
+                    obj.optString("selector", ""),
                     obj.getString("label"),
                     obj.optBoolean("isDynamic", false),
-                    obj.optString("pattern", "")
+                    obj.optString("pattern", ""),
+                    (float)obj.optDouble("rectX", 0),
+                    (float)obj.optDouble("rectY", 0),
+                    (float)obj.optDouble("rectWidth", 0),
+                    (float)obj.optDouble("rectHeight", 0)
             );
         }
     }
