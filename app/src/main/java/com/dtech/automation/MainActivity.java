@@ -22,6 +22,10 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -271,49 +275,17 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
             float jsX = relX / density;
             float jsY = relY / density;
 
-            // Better approach: inject a helper function
-            String helper = "(function(x, y) {" +
-                            "  var el = document.elementFromPoint(x, y);" +
-                            "  if (!el) return null;" +
-                            "  var getSelector = function(el) {" +
-                            "    if (el.id && !/\\d/.test(el.id)) return '#' + el.id;" +
-                            "    var path = [];" +
-                            "    var current = el;" +
-                            "    while (current && current.nodeType === 1) {" +
-                            "       var selector = current.nodeName.toLowerCase();" +
-                            "       if (current.id && !/\\d/.test(current.id)) {" +
-                            "           selector = '#' + current.id;" +
-                            "           path.unshift(selector);" +
-                            "           break;" +
-                            "       } else {" +
-                            "           var sib = current, nth = 1;" +
-                            "           while (sib = sib.previousElementSibling) {" +
-                            "               if (sib.nodeName.toLowerCase() == selector) nth++;" +
-                            "           }" +
-                            "           if (nth != 1) selector += ':nth-of-type('+nth+')';" +
-                            "       }" +
-                            "       path.unshift(selector);" +
-                            "       current = current.parentNode;" +
-                            "    }" +
-                            "    return path.join(' > ');" +
-                            "  };" +
-                            "  return JSON.stringify({ selector: getSelector(el), text: el.innerText });" +
-                            "})(" + jsX + ", " + jsY + ")";
+            // Calculate relative percentage coordinates
+            float pctX = relX / mWebView.getWidth();
+            float pctY = relY / mWebView.getHeight();
+            float pctW = draggableBox.getWidth() / (float) mWebView.getWidth();
+            float pctH = draggableBox.getHeight() / (float) mWebView.getHeight();
 
-            mWebView.evaluateJavascript(helper, val -> {
-                if (val != null && val.length() > 2) {
-                     String jsonStr = val;
-                     if (jsonStr.startsWith("\"") && jsonStr.endsWith("\"")) {
-                         jsonStr = jsonStr.substring(1, jsonStr.length() - 1).replace("\\\"", "\"");
-                     }
-                     try {
-                         JSONObject obj = new JSONObject(jsonStr);
-                         String selector = obj.getString("selector");
-                         String text = obj.optString("text", "");
-                         showLabelDialog(selector, text);
-                     } catch (Exception e) {
-                         Toast.makeText(this, "Failed to catch element", Toast.LENGTH_SHORT).show();
-                     }
+            performOcr(pctX, pctY, pctW, pctH, text -> {
+                if (text != null && !text.isEmpty()) {
+                    showLabelDialog("", text, pctX, pctY, pctW, pctH);
+                } else {
+                    Toast.makeText(this, "OCR Failed to detect text", Toast.LENGTH_SHORT).show();
                 }
             });
         });
@@ -335,6 +307,10 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     }
 
     private void showLabelDialog(String selector, String text) {
+        showLabelDialog(selector, text, 0, 0, 0, 0);
+    }
+
+    private void showLabelDialog(String selector, String text, float x, float y, float w, float h) {
         final android.widget.EditText input = new android.widget.EditText(this);
         input.setHint("Label (e.g. Balance)");
 
@@ -374,7 +350,7 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
              pattern = escaped.replace("___NUM___", "\\d+");
         }
 
-        String msg = "Captured: " + (text.length() > 20 ? text.substring(0, 20) + "..." : text) + "\n\n" +
+        String msg = "Captured: " + (text.length() > 50 ? text.substring(0, 50) + "..." : text) + "\n\n" +
                      (hasDigits ? "Detected Numbers -> Smart Pattern Generated" : "Static Content");
 
         final String finalPattern = pattern;
@@ -387,11 +363,64 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
                 String label = input.getText().toString().trim();
                 if (label.isEmpty()) label = "Data";
 
-                tempExtractionPoints.add(new ServiceRepository.ExtractionPoint(selector, label, hasDigits, finalPattern));
+                tempExtractionPoints.add(new ServiceRepository.ExtractionPoint(selector, label, hasDigits, finalPattern, x, y, w, h));
                 Toast.makeText(this, "Added: " + label, Toast.LENGTH_SHORT).show();
             })
             .setNegativeButton("Cancel", null)
             .show();
+    }
+
+    private void performOcr(float pctX, float pctY, float pctW, float pctH, OnOcrResultListener listener) {
+        runOnUiThread(() -> {
+            try {
+                // Calculate absolute pixels
+                int viewWidth = mWebView.getWidth();
+                int viewHeight = mWebView.getHeight();
+
+                int x = (int) (pctX * viewWidth);
+                int y = (int) (pctY * viewHeight);
+                int w = (int) (pctW * viewWidth);
+                int h = (int) (pctH * viewHeight);
+
+                // Safety check
+                if (w <= 0 || h <= 0) {
+                    listener.onResult("");
+                    return;
+                }
+                if (x < 0) x = 0;
+                if (y < 0) y = 0;
+                if (x + w > viewWidth) w = viewWidth - x;
+                if (y + h > viewHeight) h = viewHeight - y;
+
+                // Capture Bitmap
+                android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(viewWidth, viewHeight, android.graphics.Bitmap.Config.ARGB_8888);
+                android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
+                mWebView.draw(canvas);
+
+                // Crop
+                android.graphics.Bitmap cropped = android.graphics.Bitmap.createBitmap(bitmap, x, y, w, h);
+
+                // Process
+                InputImage image = InputImage.fromBitmap(cropped, 0);
+                TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                    .process(image)
+                    .addOnSuccessListener(visionText -> {
+                        listener.onResult(visionText.getText());
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "OCR Error", e);
+                        listener.onResult("");
+                    });
+
+            } catch (Exception e) {
+                Log.e(TAG, "Snapshot Failed", e);
+                listener.onResult("");
+            }
+        });
+    }
+
+    interface OnOcrResultListener {
+        void onResult(String text);
     }
 
     private void startRecordingDummy() {
@@ -1079,12 +1108,10 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
                          }
 
                          // If no data was extracted but the service EXPECTS data, note it.
-                         if (extracted.isEmpty() && currentService.getExtractionPoints() != null && !currentService.getExtractionPoints().isEmpty()) {
-                             extracted = " | Failed to catch data";
-                         }
+                         // BUT: We might have OCR points now.
+                         final String finalDomExtracted = extracted;
+                         performBatchExtraction(targetIndex, finalDomExtracted, 0);
 
-                         logResult(true, extracted, targetIndex);
-                         moveToNext(targetIndex);
                      } else if ("failure".equals(status)) {
                          logResult(false, res.optString("detail"), targetIndex);
                          moveToNext(targetIndex);
@@ -1108,6 +1135,37 @@ public class MainActivity extends Activity implements ServiceSelectionManager.On
     }
 
     // --- Common Utilities ---
+
+    private void performBatchExtraction(int targetIndex, String currentExtracted, int pointIndex) {
+        if (targetIndex != currentCredentialIndex || !isBatchRunning) return;
+
+        List<ServiceRepository.ExtractionPoint> points = currentService.getExtractionPoints();
+        if (points == null || pointIndex >= points.size()) {
+            // Finished all points
+            String finalExtracted = currentExtracted;
+            if (finalExtracted.isEmpty() && points != null && !points.isEmpty()) {
+                 finalExtracted = " | Failed to catch data";
+            }
+            logResult(true, finalExtracted, targetIndex);
+            moveToNext(targetIndex);
+            return;
+        }
+
+        ServiceRepository.ExtractionPoint p = points.get(pointIndex);
+        if (p.isOcr()) {
+             performOcr(p.getRectX(), p.getRectY(), p.getRectWidth(), p.getRectHeight(), text -> {
+                 String label = p.getLabel();
+                 String cleanText = text.replace("\n", " ").trim();
+                 String newExtracted = currentExtracted + " | " + label + ": " + cleanText;
+                 performBatchExtraction(targetIndex, newExtracted, pointIndex + 1);
+             });
+        } else {
+            // Already handled by DOM extraction?
+            // Actually, verifier.js handles DOM extraction. So currentExtracted already contains it.
+            // We just skip to next.
+            performBatchExtraction(targetIndex, currentExtracted, pointIndex + 1);
+        }
+    }
 
     private void handleChallenge(int targetIndex) {
         if (targetIndex != currentCredentialIndex) return;

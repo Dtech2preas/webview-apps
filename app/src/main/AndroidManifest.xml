@@ -19,6 +19,8 @@
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning">
 
+        <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="ocr" />
+
         <!-- Dashboard Activity (New Home screen) -->
         <activity
             android:name=".DashboardActivity"
