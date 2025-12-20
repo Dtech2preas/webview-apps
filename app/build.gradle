@@ -38,5 +38,4 @@ dependencies {
     // Features
     implementation 'androidx.biometric:biometric:1.1.0'
     implementation 'androidx.work:work-runtime:2.9.0'
-    implementation 'com.github.philjay:MPAndroidChart:v3.1.0'
 }

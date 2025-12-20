@@ -18,11 +18,6 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.github.mikephil.charting.charts.PieChart;
-import com.github.mikephil.charting.data.PieData;
-import com.github.mikephil.charting.data.PieDataSet;
-import com.github.mikephil.charting.data.PieEntry;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -36,7 +31,7 @@ import java.util.Locale;
 public class ResultsHistoryActivity extends Activity {
 
     private BatchResultRepository repo;
-    private PieChart pieChart;
+    private View viewGraphSuccess, viewGraphFailure;
     private TextView tvTotal, tvSuccess, tvFail, tvRate;
     private ListView listHistory;
     private Button btnFilterAll, btnFilterSession, btnExportSuccess, btnClearSession;
@@ -52,7 +47,8 @@ public class ResultsHistoryActivity extends Activity {
 
         repo = new BatchResultRepository(this);
 
-        pieChart = findViewById(R.id.pie_chart_view);
+        viewGraphSuccess = findViewById(R.id.viewGraphSuccess);
+        viewGraphFailure = findViewById(R.id.viewGraphFailure);
         tvTotal = findViewById(R.id.tv_stat_total);
         tvSuccess = findViewById(R.id.tv_stat_success);
         tvFail = findViewById(R.id.tv_stat_failure);
@@ -66,7 +62,6 @@ public class ResultsHistoryActivity extends Activity {
         btnShareAll = findViewById(R.id.btn_share_all);
         layoutSessionActions = findViewById(R.id.layout_session_actions);
 
-        setupChart();
         setupListeners();
 
         // Check intent if we should default to Session Mode
@@ -75,26 +70,6 @@ public class ResultsHistoryActivity extends Activity {
         } else {
             setFilterMode(false);
         }
-    }
-
-    private void setupChart() {
-        pieChart.setUsePercentValues(false);
-        pieChart.getDescription().setEnabled(false);
-        pieChart.setExtraOffsets(5, 10, 5, 5);
-        pieChart.setDragDecelerationFrictionCoef(0.95f);
-        pieChart.setDrawHoleEnabled(true);
-        pieChart.setHoleColor(Color.TRANSPARENT);
-        pieChart.setTransparentCircleColor(Color.WHITE);
-        pieChart.setTransparentCircleAlpha(110);
-        pieChart.setHoleRadius(58f);
-        pieChart.setTransparentCircleRadius(61f);
-        pieChart.setDrawCenterText(true);
-        pieChart.setCenterTextColor(Color.WHITE);
-        pieChart.setRotationAngle(0);
-        pieChart.setRotationEnabled(true);
-        pieChart.setHighlightPerTapEnabled(true);
-        pieChart.getLegend().setEnabled(false); // Clean look
-        pieChart.animateY(1400, com.github.mikephil.charting.animation.Easing.EaseInOutQuad);
     }
 
     private void setupListeners() {
@@ -203,31 +178,33 @@ public class ResultsHistoryActivity extends Activity {
     }
 
     private void updateChartData(int s, int f) {
-        ArrayList<PieEntry> entries = new ArrayList<>();
-        if (s > 0) entries.add(new PieEntry(s, "Success"));
-        if (f > 0) entries.add(new PieEntry(f, "Fail"));
-        if (s == 0 && f == 0) entries.add(new PieEntry(1, "Empty"));
+        int total = s + f;
 
-        PieDataSet dataSet = new PieDataSet(entries, "");
-        dataSet.setColors(
-            Color.parseColor("#00E676"), // Green
-            Color.parseColor("#FF1744"), // Red
-            Color.parseColor("#424242")  // Grey
-        );
-        dataSet.setValueTextColor(Color.WHITE);
-        dataSet.setValueTextSize(12f);
-
-        PieData data = new PieData(dataSet);
-        pieChart.setData(data);
-        pieChart.setCenterText(s + "/" + (s+f));
-        pieChart.invalidate();
-
-        tvTotal.setText("Total: " + (s+f));
+        // Update Text Stats
+        tvTotal.setText("Total: " + total);
         tvSuccess.setText("Success: " + s);
         tvFail.setText("Failures: " + f);
 
-        int rate = (s+f) > 0 ? (int)((float)s / (s+f) * 100) : 0;
+        int rate = total > 0 ? (int)((float)s / total * 100) : 0;
         tvRate.setText("Success Rate: " + rate + "%");
+
+        // Update Graph Weights
+        float weightSuccess = 0;
+        float weightFailure = 0;
+
+        if (total > 0) {
+            weightSuccess = (float)s / total * 100f;
+            weightFailure = (float)f / total * 100f;
+        }
+
+        // Apply Weights
+        LinearLayout.LayoutParams paramsS = (LinearLayout.LayoutParams) viewGraphSuccess.getLayoutParams();
+        paramsS.weight = weightSuccess;
+        viewGraphSuccess.setLayoutParams(paramsS);
+
+        LinearLayout.LayoutParams paramsF = (LinearLayout.LayoutParams) viewGraphFailure.getLayoutParams();
+        paramsF.weight = weightFailure;
+        viewGraphFailure.setLayoutParams(paramsF);
     }
 
     private void showGlobalRunDetails(BatchResultRepository.BatchRun run) {
