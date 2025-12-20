@@ -81,7 +81,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     // Buttons in Floating Menu
     private Button btnRecordStep1, btnRecordStep2;
     private Button btnPlaySingle, btnExecuteBatch, btnStopBatch;
-    private Button btnSelectService, btnSessionResults;
+    private Button btnSelectService, btnSessionResults, btnCredentials;
 
     // Draggable Logic
     private float overlayDX, overlayDY;
@@ -113,6 +113,11 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     private ServiceRepository serviceRepo;
     private ServiceRepository.ServiceData currentService;
     private static final int REQUEST_CODE_IMPORT_JSON = 1001;
+    private static final int REQUEST_CODE_IMPORT_CREDS = 1002;
+
+    // Credentials Dialog State
+    private Dialog currentCredsDialog;
+    private EditText currentCredsInput;
 
     // Batch Execution State
     private List<String> credentialList = new ArrayList<>();
@@ -295,6 +300,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         btnExecuteBatch = overlayView.findViewById(R.id.btn_execute_batch);
         btnSelectService = overlayView.findViewById(R.id.btn_select_service);
         btnSessionResults = overlayView.findViewById(R.id.btn_session_results);
+        btnCredentials = overlayView.findViewById(R.id.btn_credentials);
         btnStopBatch = overlayView.findViewById(R.id.btn_stop_batch);
 
         // Setup Console Log
@@ -337,6 +343,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         btnExecuteBatch.setOnClickListener(v -> { performHapticFeedback(); startBatchReplay(); });
         btnSelectService.setOnClickListener(v -> { performHapticFeedback(); showServiceSelection(); });
         btnSessionResults.setOnClickListener(v -> { performHapticFeedback(); showBatchResults(); });
+        btnCredentials.setOnClickListener(v -> { performHapticFeedback(); showCredentialsDialog(); });
         btnStopBatch.setOnClickListener(v -> { performHapticFeedback(); stopBatch(); });
 
         updateTerminal("System Ready.");
@@ -710,6 +717,70 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         }
     }
 
+    private void showCredentialsDialog() {
+        if (currentService == null) {
+            Toast.makeText(this, "Please select a service first.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        currentCredsDialog = new com.google.android.material.bottomsheet.BottomSheetDialog(this);
+        currentCredsDialog.setContentView(R.layout.dialog_credentials);
+
+        TextView tvServiceLabel = currentCredsDialog.findViewById(R.id.tv_creds_service_label);
+        currentCredsInput = currentCredsDialog.findViewById(R.id.et_creds_input);
+        Button btnPaste = currentCredsDialog.findViewById(R.id.btn_creds_paste);
+        Button btnImport = currentCredsDialog.findViewById(R.id.btn_creds_import);
+        Button btnSave = currentCredsDialog.findViewById(R.id.btn_creds_save);
+
+        tvServiceLabel.setText("Target Service: " + currentService.getName());
+
+        // Load existing
+        SharedPreferences settings = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+        String saved = settings.getString("creds_" + currentService.getId(), "");
+        currentCredsInput.setText(saved);
+
+        btnPaste.setOnClickListener(v -> {
+            android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard.hasPrimaryClip() && clipboard.getPrimaryClip().getItemCount() > 0) {
+                CharSequence text = clipboard.getPrimaryClip().getItemAt(0).getText();
+                if (text != null) {
+                    currentCredsInput.setText(text);
+                    currentCredsInput.setSelection(currentCredsInput.getText().length());
+                }
+            }
+        });
+
+        btnImport.setOnClickListener(v -> {
+             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+             intent.addCategory(Intent.CATEGORY_OPENABLE);
+             intent.setType("text/plain");
+             startActivityForResult(intent, REQUEST_CODE_IMPORT_CREDS);
+        });
+
+        btnSave.setOnClickListener(v -> {
+            String input = currentCredsInput.getText().toString();
+            // Basic validation
+            if (!input.isEmpty() && !input.contains(":")) {
+                Toast.makeText(this, "Warning: No colons detected. Format is email:pass", Toast.LENGTH_LONG).show();
+            }
+
+            settings.edit().putString("creds_" + currentService.getId(), input).apply();
+
+            int count = 0;
+            for(String line : input.split("\n")) if(line.trim().length() > 0) count++;
+
+            Toast.makeText(this, "Saved " + count + " accounts for " + currentService.getName(), Toast.LENGTH_SHORT).show();
+            currentCredsDialog.dismiss();
+        });
+
+        currentCredsDialog.setOnDismissListener(d -> {
+            currentCredsDialog = null;
+            currentCredsInput = null;
+        });
+
+        currentCredsDialog.show();
+    }
+
     private void showServiceSelection() {
         new ServiceSelectionManager(this, this).showServiceSelectionDialog();
     }
@@ -787,6 +858,29 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                     Toast.makeText(this, "Import Failed: Invalid File", Toast.LENGTH_SHORT).show();
                 }
             }
+        } else if (requestCode == REQUEST_CODE_IMPORT_CREDS && resultCode == Activity.RESULT_OK) {
+             if (data != null && data.getData() != null) {
+                 Uri uri = data.getData();
+                 try {
+                     InputStream is = getContentResolver().openInputStream(uri);
+                     BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+                     StringBuilder sb = new StringBuilder();
+                     String line;
+                     while ((line = reader.readLine()) != null) sb.append(line).append("\n");
+
+                     String content = sb.toString();
+                     if (currentCredsInput != null) {
+                         currentCredsInput.setText(content);
+                     } else if (currentService != null) {
+                         // Fallback if dialog closed
+                         SharedPreferences settings = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+                         settings.edit().putString("creds_" + currentService.getId(), content).apply();
+                         Toast.makeText(this, "Imported directly to memory (Dialog was closed).", Toast.LENGTH_LONG).show();
+                     }
+                 } catch (Exception e) {
+                     Toast.makeText(this, "Failed to read file.", Toast.LENGTH_SHORT).show();
+                 }
+             }
         }
     }
 

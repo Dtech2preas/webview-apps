@@ -136,6 +136,16 @@
                     android:text="RESULTS"
                     android:textSize="10sp" />
 
+                <!-- Row 4 -->
+                <Button
+                    android:id="@+id/btn_credentials"
+                    style="@style/DTechButton"
+                    android:layout_width="match_parent"
+                    android:layout_columnSpan="2"
+                    android:layout_height="40dp"
+                    android:text="CREDENTIALS"
+                    android:textSize="10sp" />
+
             </GridLayout>
 
             <!-- Stop Batch Button (Hidden by default) -->
