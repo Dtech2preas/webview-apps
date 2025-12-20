@@ -826,7 +826,9 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
-        String[] mimetypes = {"application/json", "application/octet-stream"};
+        // Strict enforcement for .dtech via octet-stream and file selection
+        // JSON support removed per requirements
+        String[] mimetypes = {"application/octet-stream"};
         intent.putExtra(Intent.EXTRA_MIME_TYPES, mimetypes);
         startActivityForResult(intent, REQUEST_CODE_IMPORT_JSON);
     }
@@ -837,23 +839,33 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         if (requestCode == REQUEST_CODE_IMPORT_JSON && resultCode == Activity.RESULT_OK) {
             if (data != null && data.getData() != null) {
                 Uri uri = data.getData();
+                // Strict .dtech import only. Fallback JSON support removed.
                 ServiceRepository.ServiceData s = fileManager.importServiceFromUri(uri);
-                if (s == null) {
-                     try {
-                        InputStream is = getContentResolver().openInputStream(uri);
-                        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-                        StringBuilder sb = new StringBuilder();
-                        String line;
-                        while ((line = reader.readLine()) != null) sb.append(line);
-                        s = ServiceRepository.ServiceData.fromJson(new JSONObject(sb.toString()));
-                     } catch(Exception e) { s = null; }
-                }
 
                 if (s != null) {
-                    s = new ServiceRepository.ServiceData(java.util.UUID.randomUUID().toString(), s.getName() + " (Imported)", s.getLoginUrl());
-                    serviceRepo.addOrUpdateService(s);
+                    // Create a full copy with new ID and Name to preserve all automation data
+                    ServiceRepository.ServiceData imported = new ServiceRepository.ServiceData(
+                        java.util.UUID.randomUUID().toString(),
+                        s.getName() + " (Imported)",
+                        s.getLoginUrl()
+                    );
+                    // Critical: Copy steps and validation rules
+                    imported.setScriptJson(s.getScriptJson());
+                    imported.setSuccessUrl(s.getSuccessUrl());
+                    imported.setSuccessSelector(s.getSuccessSelector());
+                    imported.setSuccessKeywords(s.getSuccessKeywords());
+                    imported.setFailureKeywords(s.getFailureKeywords());
+                    imported.setExtractionPoints(s.getExtractionPoints());
+                    imported.setUserAgent(s.getUserAgent());
+                    imported.setUseOcrForSuccess(s.isUseOcrForSuccess());
+                    imported.setSuccessOcrText(s.getSuccessOcrText());
+                    imported.setSuccessOcrRect(s.getSuccessOcrX(), s.getSuccessOcrY(), s.getSuccessOcrW(), s.getSuccessOcrH());
+
+                    serviceRepo.addOrUpdateService(imported);
                     Toast.makeText(this, "Service Imported Successfully!", Toast.LENGTH_SHORT).show();
-                    showServiceSelection();
+
+                    // Immediately load the imported service so it's ready to run
+                    onServiceSelected(imported);
                 } else {
                     Toast.makeText(this, "Import Failed: Invalid File", Toast.LENGTH_SHORT).show();
                 }
@@ -1661,7 +1673,12 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     }
 
     private void showBatchResults() {
-        startActivity(new Intent(this, ResultsHistoryActivity.class));
+        try {
+            startActivity(new Intent(this, ResultsHistoryActivity.class));
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to open results", e);
+            Toast.makeText(this, "Error opening results", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void startAdChecker() {
