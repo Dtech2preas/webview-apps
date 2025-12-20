@@ -1,6 +1,5 @@
 <resources>
 
-    <!-- D-TECH Base Theme -->
     <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="android:statusBarColor">@color/dtech_background_black</item>
         <item name="android:windowBackground">@color/dtech_background_black</item>
@@ -16,17 +15,14 @@
         <item name="android:textColorPrimary">@color/dtech_text_primary</item>
         <item name="android:textColorSecondary">@color/dtech_text_secondary</item>
 
-        <!-- Enable Material Features -->
         <item name="bottomSheetDialogTheme">@style/AppBottomSheetDialogTheme</item>
     </style>
 
-    <!-- Transparent Activity -->
     <style name="Theme.Transparent" parent="AppTheme">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
     </style>
 
-    <!-- Bottom Sheet Theme -->
     <style name="AppBottomSheetDialogTheme" parent="Theme.Design.Light.BottomSheetDialog">
         <item name="bottomSheetStyle">@style/AppModalStyle</item>
     </style>
@@ -35,7 +31,6 @@
         <item name="android:background">@android:color/transparent</item>
     </style>
 
-    <!-- D-TECH Card Style -->
     <style name="DTechCard" parent="Widget.MaterialComponents.CardView">
         <item name="cardBackgroundColor">@color/dtech_surface_grey</item>
         <item name="cardCornerRadius">16dp</item>
@@ -44,7 +39,6 @@
         <item name="strokeWidth">1dp</item>
     </style>
 
-    <!-- D-TECH Text Styles -->
     <style name="DTechTextHeader">
         <item name="android:textSize">20sp</item>
         <item name="android:textStyle">bold</item>
@@ -58,7 +52,6 @@
         <item name="android:fontFamily">monospace</item>
     </style>
 
-    <!-- D-TECH Button Style -->
     <style name="DTechButton" parent="Widget.MaterialComponents.Button">
         <item name="backgroundTint">@color/dtech_cyan_dim</item>
         <item name="strokeColor">@color/dtech_cyan</item>
@@ -76,9 +69,12 @@
     </style>
 
     <style name="DTechButton.Alert" parent="DTechButton">
-        <item name="backgroundTint">#4DFF1744</item> <!-- Red Dim -->
+        <item name="backgroundTint">#4DFF1744</item>
         <item name="strokeColor">@color/dtech_red</item>
         <item name="android:textColor">@color/dtech_red</item>
     </style>
+
+    <style name="CyberButton" parent="DTechButton" />
+    <style name="CyberButton.Alert" parent="DTechButton.Alert" />
 
 </resources>
