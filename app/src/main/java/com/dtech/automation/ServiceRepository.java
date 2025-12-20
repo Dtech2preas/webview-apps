@@ -261,6 +261,11 @@ public class ServiceRepository {
             this.successOcrW = w;
             this.successOcrH = h;
         }
+
+        @Override
+        public String toString() {
+            return name;
+        }
     }
 
     public static class ExtractionPoint {

@@ -1,21 +1,26 @@
 <resources>
 
-    <!-- Base Theme -->
-    <style name="AppTheme" parent="Theme.MaterialComponents.Light.NoActionBar">
-        <item name="android:statusBarColor">@color/cyber_black</item>
-        <item name="android:windowBackground">@color/cyber_black</item>
-        <item name="colorPrimary">@color/cyber_cyan</item>
-        <item name="colorPrimaryVariant">@color/cyber_dark_gray</item>
-        <item name="colorOnPrimary">@color/cyber_black</item>
-        <item name="colorSecondary">@color/cyber_red</item>
-        <item name="colorOnSecondary">@color/cyber_text_primary</item>
-        <item name="android:textColor">@color/cyber_text_primary</item>
+    <!-- D-TECH Base Theme -->
+    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@color/dtech_background_black</item>
+        <item name="android:windowBackground">@color/dtech_background_black</item>
+
+        <item name="colorPrimary">@color/dtech_cyan</item>
+        <item name="colorPrimaryVariant">@color/dtech_surface_grey</item>
+        <item name="colorOnPrimary">@color/dtech_background_black</item>
+
+        <item name="colorSecondary">@color/dtech_purple</item>
+        <item name="colorOnSecondary">@color/dtech_text_primary</item>
+
+        <item name="android:textColor">@color/dtech_text_primary</item>
+        <item name="android:textColorPrimary">@color/dtech_text_primary</item>
+        <item name="android:textColorSecondary">@color/dtech_text_secondary</item>
 
         <!-- Enable Material Features -->
         <item name="bottomSheetDialogTheme">@style/AppBottomSheetDialogTheme</item>
     </style>
 
-    <!-- Transparent Activity for Stealth Mode or Dialogs -->
+    <!-- Transparent Activity -->
     <style name="Theme.Transparent" parent="AppTheme">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
@@ -27,33 +32,53 @@
     </style>
 
     <style name="AppModalStyle" parent="Widget.Design.BottomSheet.Modal">
-        <item name="android:background">@drawable/bg_control_deck</item>
+        <item name="android:background">@android:color/transparent</item>
     </style>
 
-    <!-- Cyberpunk Button Style -->
-    <style name="CyberButton" parent="Widget.MaterialComponents.Button">
-        <item name="backgroundTint">@color/cyber_cyan_dim</item>
-        <item name="strokeColor">@color/cyber_cyan</item>
-        <item name="strokeWidth">2dp</item>
-        <item name="android:textColor">@color/cyber_cyan</item>
-        <item name="cornerRadius">8dp</item>
+    <!-- D-TECH Card Style -->
+    <style name="DTechCard" parent="Widget.MaterialComponents.CardView">
+        <item name="cardBackgroundColor">@color/dtech_surface_grey</item>
+        <item name="cardCornerRadius">16dp</item>
+        <item name="cardElevation">6dp</item>
+        <item name="strokeColor">@color/dtech_cyan</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+
+    <!-- D-TECH Text Styles -->
+    <style name="DTechTextHeader">
+        <item name="android:textSize">20sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/dtech_cyan</item>
+        <item name="android:fontFamily">sans-serif-condensed</item>
+    </style>
+
+    <style name="DTechTextConsole">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">@color/dtech_text_secondary</item>
+        <item name="android:fontFamily">monospace</item>
+    </style>
+
+    <!-- D-TECH Button Style -->
+    <style name="DTechButton" parent="Widget.MaterialComponents.Button">
+        <item name="backgroundTint">@color/dtech_cyan_dim</item>
+        <item name="strokeColor">@color/dtech_cyan</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="android:textColor">@color/dtech_cyan</item>
+        <item name="cornerRadius">12dp</item>
         <item name="android:fontFamily">monospace</item>
         <item name="android:textStyle">bold</item>
     </style>
 
-    <style name="CyberButton.Alert" parent="CyberButton">
-        <item name="backgroundTint">@color/cyber_red_dim</item>
-        <item name="strokeColor">@color/cyber_red</item>
-        <item name="android:textColor">@color/cyber_red</item>
+    <style name="DTechButton.Accent" parent="DTechButton">
+        <item name="backgroundTint">@color/dtech_purple_dim</item>
+        <item name="strokeColor">@color/dtech_purple</item>
+        <item name="android:textColor">@color/dtech_purple</item>
     </style>
 
-    <!-- Card Style -->
-    <style name="CyberCard" parent="Widget.MaterialComponents.CardView">
-        <item name="cardBackgroundColor">@color/cyber_dark_gray</item>
-        <item name="cardCornerRadius">12dp</item>
-        <item name="cardElevation">4dp</item>
-        <item name="strokeColor">@color/cyber_cyan_dim</item>
-        <item name="strokeWidth">1dp</item>
+    <style name="DTechButton.Alert" parent="DTechButton">
+        <item name="backgroundTint">#4DFF1744</item> <!-- Red Dim -->
+        <item name="strokeColor">@color/dtech_red</item>
+        <item name="android:textColor">@color/dtech_red</item>
     </style>
 
 </resources>

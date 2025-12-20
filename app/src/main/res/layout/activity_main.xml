@@ -72,7 +72,9 @@
 
     </FrameLayout>
 
-    <!-- Control Deck (Bottom Sheet) -->
-    <include layout="@layout/layout_control_deck" />
+    <!-- Floating Overlay (Programmatically added or included here if needed) -->
+    <!-- We removed the static include as we inflate it dynamically in MainActivity,
+         or we can include it here to be cleaner -->
+    <!-- <include layout="@layout/layout_floating_overlay" /> -->
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

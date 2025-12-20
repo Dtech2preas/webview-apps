@@ -1,17 +1,23 @@
 package com.dtech.automation;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Switch;
 import android.widget.Toast;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+
 public class SettingsActivity extends Activity {
 
     private EditText etCredentials;
-    private Button btnSave;
+    private Button btnSave, btnImportList;
     private Switch switchBiometric;
     private Switch switchEvidence;
 
@@ -19,6 +25,8 @@ public class SettingsActivity extends Activity {
     private String currentServiceId;
     private ServiceRepository serviceRepo;
     private SecurityManager securityManager;
+
+    private static final int REQUEST_CODE_IMPORT_TXT = 1002;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -28,6 +36,7 @@ public class SettingsActivity extends Activity {
 
         etCredentials = findViewById(R.id.et_credentials);
         btnSave = findViewById(R.id.btn_save);
+        btnImportList = findViewById(R.id.btn_import_list);
         switchBiometric = findViewById(R.id.switch_biometric);
         switchEvidence = findViewById(R.id.switch_evidence);
 
@@ -60,6 +69,8 @@ public class SettingsActivity extends Activity {
             Toast.makeText(this, "Settings Saved", Toast.LENGTH_SHORT).show();
             finish();
         });
+
+        btnImportList.setOnClickListener(v -> initiateImport());
     }
 
     private void loadCredentials(String serviceId) {
@@ -74,6 +85,44 @@ public class SettingsActivity extends Activity {
         SharedPreferences.Editor editor = prefs.edit();
         editor.putString("creds_" + serviceId, input);
         editor.apply();
+    }
+
+    private void initiateImport() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("text/plain");
+        startActivityForResult(intent, REQUEST_CODE_IMPORT_TXT);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_CODE_IMPORT_TXT && resultCode == Activity.RESULT_OK) {
+            if (data != null && data.getData() != null) {
+                Uri uri = data.getData();
+                try {
+                    InputStream is = getContentResolver().openInputStream(uri);
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        // Basic validation or filtering if needed
+                        if (line.trim().length() > 0) {
+                            sb.append(line.trim()).append("\n");
+                        }
+                    }
+                    reader.close();
+
+                    String existing = etCredentials.getText().toString();
+                    if (existing.length() > 0 && !existing.endsWith("\n")) existing += "\n";
+                    etCredentials.setText(existing + sb.toString());
+
+                    Toast.makeText(this, "Imported!", Toast.LENGTH_SHORT).show();
+                } catch(Exception e) {
+                    Toast.makeText(this, "Import Failed", Toast.LENGTH_SHORT).show();
+                }
+            }
+        }
     }
 
     @Override
