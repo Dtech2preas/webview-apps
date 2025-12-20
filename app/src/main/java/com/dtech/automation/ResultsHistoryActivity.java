@@ -165,6 +165,9 @@ public class ResultsHistoryActivity extends Activity {
         } else {
             // Global History from Repo
             List<BatchResultRepository.BatchRun> history = repo.getHistory();
+            if (history == null) {
+                history = new ArrayList<>();
+            }
             for (BatchResultRepository.BatchRun run : history) {
                 totalS += run.successCount;
                 totalF += run.failureCount;
