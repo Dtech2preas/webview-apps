@@ -1,24 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Cyberpunk Theme Colors -->
-    <color name="cyber_black">#121212</color>
-    <color name="cyber_dark_gray">#1E1E1E</color>
-    <color name="cyber_panel_bg">#2D2D2D</color>
+    <!-- D-TECH Theme Colors -->
+    <!-- Backgrounds -->
+    <color name="dtech_background_black">#000000</color> <!-- AMOLED Black -->
+    <color name="dtech_surface_grey">#121212</color> <!-- Card Surface -->
+    <color name="dtech_panel_bg">#1E1E1E</color>
 
-    <color name="cyber_cyan">#00E5FF</color>
-    <color name="cyber_cyan_dim">#4D00E5FF</color>
+    <!-- Accents -->
+    <color name="dtech_cyan">#00E5FF</color> <!-- Primary Action -->
+    <color name="dtech_cyan_dim">#4D00E5FF</color>
+    <color name="dtech_purple">#D500F9</color> <!-- Secondary Highlight -->
+    <color name="dtech_purple_dim">#4DD500F9</color>
+    <color name="dtech_red">#FF1744</color> <!-- Alert/Stop -->
 
-    <color name="cyber_red">#FF1744</color>
-    <color name="cyber_red_dim">#4DFF1744</color>
+    <!-- Text -->
+    <color name="dtech_text_primary">#FFFFFF</color>
+    <color name="dtech_text_secondary">#B0B0B0</color>
+    <color name="dtech_console_green">#69F0AE</color> <!-- Success Log -->
+    <color name="dtech_console_red">#FF5252</color> <!-- Failure Log -->
+    <color name="dtech_console_info">#00E5FF</color> <!-- Info Log -->
 
-    <color name="cyber_green">#00E676</color>
-    <color name="cyber_text_primary">#FFFFFF</color>
-    <color name="cyber_text_secondary">#B0B0B0</color>
-
+    <!-- Overlays -->
+    <color name="dtech_overlay_dim">#E6000000</color> <!-- 90% opacity black -->
     <color name="transparent_black">#CC000000</color>
 
-    <!-- Standard Overrides -->
-    <color name="colorPrimary">@color/cyber_cyan</color>
-    <color name="colorPrimaryDark">@color/cyber_black</color>
-    <color name="colorAccent">@color/cyber_red</color>
+    <!-- Standard Overrides mapping to D-TECH -->
+    <color name="colorPrimary">@color/dtech_cyan</color>
+    <color name="colorPrimaryDark">@color/dtech_background_black</color>
+    <color name="colorAccent">@color/dtech_purple</color>
 </resources>

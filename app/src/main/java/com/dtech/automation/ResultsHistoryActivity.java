@@ -2,12 +2,26 @@ package com.dtech.automation;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
+import android.graphics.Color;
 import android.os.Bundle;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.ImageButton;
+import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import com.github.mikephil.charting.charts.PieChart;
+import com.github.mikephil.charting.data.PieData;
+import com.github.mikephil.charting.data.PieDataSet;
+import com.github.mikephil.charting.data.PieEntry;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -22,9 +36,14 @@ import java.util.Locale;
 public class ResultsHistoryActivity extends Activity {
 
     private BatchResultRepository repo;
-    private PieChartView pieChart;
-    private TextView tvTotal, tvSuccess, tvFail;
+    private PieChart pieChart;
+    private TextView tvTotal, tvSuccess, tvFail, tvRate;
     private ListView listHistory;
+    private Button btnFilterAll, btnFilterSession, btnExportSuccess, btnClearSession;
+    private ImageButton btnShareAll;
+    private LinearLayout layoutSessionActions;
+
+    private boolean isSessionMode = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,48 +52,184 @@ public class ResultsHistoryActivity extends Activity {
 
         repo = new BatchResultRepository(this);
 
-        pieChart = findViewById(R.id.pie_chart);
-        tvTotal = findViewById(R.id.tv_total_stats);
-        tvSuccess = findViewById(R.id.tv_success_stats);
-        tvFail = findViewById(R.id.tv_fail_stats);
+        pieChart = findViewById(R.id.pie_chart_view);
+        tvTotal = findViewById(R.id.tv_stat_total);
+        tvSuccess = findViewById(R.id.tv_stat_success);
+        tvFail = findViewById(R.id.tv_stat_failure);
+        tvRate = findViewById(R.id.tv_stat_rate);
         listHistory = findViewById(R.id.list_history);
 
-        loadData();
+        btnFilterAll = findViewById(R.id.btn_filter_all);
+        btnFilterSession = findViewById(R.id.btn_filter_session);
+        btnExportSuccess = findViewById(R.id.btn_export_success);
+        btnClearSession = findViewById(R.id.btn_clear_session);
+        btnShareAll = findViewById(R.id.btn_share_all);
+        layoutSessionActions = findViewById(R.id.layout_session_actions);
+
+        setupChart();
+        setupListeners();
+
+        // Check intent if we should default to Session Mode
+        if (getIntent().getBooleanExtra("SESSION_MODE", false)) {
+            setFilterMode(true);
+        } else {
+            setFilterMode(false);
+        }
     }
 
-    private void loadData() {
-        List<BatchResultRepository.BatchRun> history = repo.getHistory();
+    private void setupChart() {
+        pieChart.setUsePercentValues(false);
+        pieChart.getDescription().setEnabled(false);
+        pieChart.setExtraOffsets(5, 10, 5, 5);
+        pieChart.setDragDecelerationFrictionCoef(0.95f);
+        pieChart.setDrawHoleEnabled(true);
+        pieChart.setHoleColor(Color.TRANSPARENT);
+        pieChart.setTransparentCircleColor(Color.WHITE);
+        pieChart.setTransparentCircleAlpha(110);
+        pieChart.setHoleRadius(58f);
+        pieChart.setTransparentCircleRadius(61f);
+        pieChart.setDrawCenterText(true);
+        pieChart.setCenterTextColor(Color.WHITE);
+        pieChart.setRotationAngle(0);
+        pieChart.setRotationEnabled(true);
+        pieChart.setHighlightPerTapEnabled(true);
+        pieChart.getLegend().setEnabled(false); // Clean look
+        pieChart.animateY(1400, com.github.mikephil.charting.animation.Easing.EaseInOutQuad);
+    }
 
-        int totalS = 0;
-        int totalF = 0;
+    private void setupListeners() {
+        btnFilterAll.setOnClickListener(v -> setFilterMode(false));
+        btnFilterSession.setOnClickListener(v -> setFilterMode(true));
 
-        List<String> displayList = new ArrayList<>();
-        for (BatchResultRepository.BatchRun run : history) {
-            totalS += run.successCount;
-            totalF += run.failureCount;
-            String date = new SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()).format(new Date(run.timestamp));
-            displayList.add(date + " - " + run.serviceName + " (S:" + run.successCount + " F:" + run.failureCount + ")");
-        }
+        btnShareAll.setOnClickListener(v -> {
+            // Export logic (Share Intent)
+            exportCurrentView(false);
+        });
 
-        updateChart(totalS, totalF);
+        btnExportSuccess.setOnClickListener(v -> exportCurrentView(true));
 
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, displayList);
-        listHistory.setAdapter(adapter);
-
-        listHistory.setOnItemClickListener((parent, view, position, id) -> {
-            BatchResultRepository.BatchRun run = history.get(position);
-            showRunDetails(run);
+        btnClearSession.setOnClickListener(v -> {
+            new AlertDialog.Builder(this)
+                .setTitle("Clear Log?")
+                .setMessage("This will delete the current 'batch_results.txt' file.")
+                .setPositiveButton("Clear", (d, w) -> {
+                    deleteFile("batch_results.txt");
+                    loadData(true); // reload session view
+                    Toast.makeText(this, "Cleared.", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
         });
     }
 
-    private void updateChart(int s, int f) {
-        pieChart.setData(s, f);
-        tvTotal.setText("Total Runs: " + repo.getHistory().size());
-        tvSuccess.setText("Success: " + s);
-        tvFail.setText("Failures: " + f);
+    private void setFilterMode(boolean session) {
+        isSessionMode = session;
+        if (session) {
+            btnFilterSession.setAlpha(1.0f);
+            btnFilterAll.setAlpha(0.5f);
+            layoutSessionActions.setVisibility(View.VISIBLE);
+        } else {
+            btnFilterAll.setAlpha(1.0f);
+            btnFilterSession.setAlpha(0.5f);
+            layoutSessionActions.setVisibility(View.GONE);
+        }
+        loadData(session);
     }
 
-    private void showRunDetails(BatchResultRepository.BatchRun run) {
+    private void loadData(boolean sessionMode) {
+        int totalS = 0;
+        int totalF = 0;
+        List<String> displayList = new ArrayList<>();
+        List<String> rawLines = new ArrayList<>(); // To store full content for export later
+
+        if (sessionMode) {
+            // Read batch_results.txt
+            try {
+                FileInputStream fis = openFileInput("batch_results.txt");
+                BufferedReader reader = new BufferedReader(new InputStreamReader(fis));
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    rawLines.add(line);
+                    // Format: STATUS|ServiceName|email:pass|Details...
+                    String[] parts = line.split("\\|");
+                    boolean isSuccess = parts.length > 0 && parts[0].equalsIgnoreCase("SUCCESS");
+                    if (isSuccess) totalS++; else totalF++;
+
+                    String display = (isSuccess ? "[HIT] " : "[FAIL] ") + (parts.length > 2 ? parts[2] : "???");
+                    displayList.add(display);
+                }
+                reader.close();
+            } catch (Exception e) {
+                displayList.add("No active session logs found.");
+            }
+        } else {
+            // Global History from Repo
+            List<BatchResultRepository.BatchRun> history = repo.getHistory();
+            for (BatchResultRepository.BatchRun run : history) {
+                totalS += run.successCount;
+                totalF += run.failureCount;
+                String date = new SimpleDateFormat("MMM dd HH:mm", Locale.getDefault()).format(new Date(run.timestamp));
+                displayList.add(date + " | " + run.serviceName + " (S:" + run.successCount + ")");
+            }
+        }
+
+        // Update Chart
+        updateChartData(totalS, totalF);
+
+        // Update List
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, displayList) {
+             @Override
+             public View getView(int position, View convertView, ViewGroup parent) {
+                 View view = super.getView(position, convertView, parent);
+                 TextView textView = (TextView) view.findViewById(android.R.id.text1);
+                 textView.setTextColor(Color.WHITE);
+                 textView.setTextSize(12);
+                 textView.setTypeface(android.graphics.Typeface.MONOSPACE);
+                 return view;
+             }
+        };
+        listHistory.setAdapter(adapter);
+
+        // Click Listener for Details
+        if (!sessionMode) {
+            listHistory.setOnItemClickListener((parent, view, position, id) -> {
+                BatchResultRepository.BatchRun run = repo.getHistory().get(position);
+                showGlobalRunDetails(run);
+            });
+        }
+    }
+
+    private void updateChartData(int s, int f) {
+        ArrayList<PieEntry> entries = new ArrayList<>();
+        if (s > 0) entries.add(new PieEntry(s, "Success"));
+        if (f > 0) entries.add(new PieEntry(f, "Fail"));
+        if (s == 0 && f == 0) entries.add(new PieEntry(1, "Empty"));
+
+        PieDataSet dataSet = new PieDataSet(entries, "");
+        dataSet.setColors(
+            Color.parseColor("#00E676"), // Green
+            Color.parseColor("#FF1744"), // Red
+            Color.parseColor("#424242")  // Grey
+        );
+        dataSet.setValueTextColor(Color.WHITE);
+        dataSet.setValueTextSize(12f);
+
+        PieData data = new PieData(dataSet);
+        pieChart.setData(data);
+        pieChart.setCenterText(s + "/" + (s+f));
+        pieChart.invalidate();
+
+        tvTotal.setText("Total: " + (s+f));
+        tvSuccess.setText("Success: " + s);
+        tvFail.setText("Failures: " + f);
+
+        int rate = (s+f) > 0 ? (int)((float)s / (s+f) * 100) : 0;
+        tvRate.setText("Success Rate: " + rate + "%");
+    }
+
+    private void showGlobalRunDetails(BatchResultRepository.BatchRun run) {
+        // ... (Same logic as before to read file)
+        // Re-implementing simplified
         StringBuilder content = new StringBuilder();
         try {
             File file = new File(getFilesDir(), run.resultFilePath);
@@ -84,67 +239,78 @@ public class ResultsHistoryActivity extends Activity {
                 String line;
                 while ((line = reader.readLine()) != null) content.append(line).append("\n");
                 reader.close();
-            } else {
-                content.append("Log file not found.");
             }
-        } catch (Exception e) { content.append("Error reading log."); }
+        } catch(Exception e){}
 
         new AlertDialog.Builder(this)
-            .setTitle(run.serviceName + " Results")
-            .setMessage("Stats: S=" + run.successCount + " F=" + run.failureCount + "\n\n" + (content.length() > 500 ? "Displaying first 500 chars...\n" + content.substring(0, 500) : content))
-            .setPositiveButton("Export CSV", (d, w) -> exportToCSV(run, content.toString()))
+            .setTitle(run.serviceName)
+            .setMessage(content.length() > 0 ? content.substring(0, Math.min(content.length(), 1000)) + "..." : "No logs.")
+            .setPositiveButton("Export", (d, w) -> exportText(content.toString(), "Export All"))
             .setNegativeButton("Close", null)
             .show();
     }
 
-    private void exportToCSV(BatchResultRepository.BatchRun run, String rawContent) {
-        StringBuilder csv = new StringBuilder();
-        csv.append("Status,Service,Credentials,Details\n");
+    private void exportCurrentView(boolean successOnly) {
+        StringBuilder sb = new StringBuilder();
 
-        // Parse raw content which is pipe separated: STATUS|SERVICE|CREDS|DETAILS
-        for (String line : rawContent.split("\n")) {
-            String[] parts = line.split("\\|");
-            for (int i=0; i<parts.length; i++) {
-                csv.append("\"").append(parts[i].replace("\"", "\"\"")).append("\"");
-                if (i < parts.length - 1) csv.append(",");
-            }
-            csv.append("\n");
+        if (isSessionMode) {
+             try {
+                FileInputStream fis = openFileInput("batch_results.txt");
+                BufferedReader reader = new BufferedReader(new InputStreamReader(fis));
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (successOnly && !line.startsWith("SUCCESS")) continue;
+                    sb.append(line).append("\n");
+                }
+                reader.close();
+            } catch (Exception e) {}
+        } else {
+             // Export Summary of all runs? Or combine all logs?
+             // Requirement says "Manage All Saved Results" -> "Export in a batch"
+             // Let's just iterate all history
+             for (BatchResultRepository.BatchRun run : repo.getHistory()) {
+                 sb.append("====== [ ").append(run.serviceName).append(" | ").append(new Date(run.timestamp)).append(" ] ======\n");
+                 try {
+                    File file = new File(getFilesDir(), run.resultFilePath);
+                    FileInputStream fis = new FileInputStream(file);
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(fis));
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (successOnly && !line.startsWith("SUCCESS")) continue;
+                        sb.append(line).append("\n");
+                    }
+                    reader.close();
+                 } catch(Exception e){}
+                 sb.append("\n\n");
+             }
         }
 
-        try {
-            // Save to cache/public
-            String filename = "results_" + run.timestamp + ".csv";
-            File file = new File(getExternalCacheDir(), filename);
-            java.io.FileOutputStream fos = new java.io.FileOutputStream(file);
-            fos.write(csv.toString().getBytes());
-            fos.close();
-
-            // Share Intent
-            Intent intent = new Intent(Intent.ACTION_SEND);
-            intent.setType("text/csv");
-            intent.putExtra(Intent.EXTRA_STREAM, android.net.Uri.fromFile(file));
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-
-            // Note: fromFile is deprecated and triggers FileUriExposedException on newer Android (24+)
-            // But since we are targeting SDK 34, we must use FileProvider.
-            // However, setting up FileProvider requires Manifest edits and XML resources which is risky to get right blindly.
-            // Strategy: Use plain text sharing if CSV file sharing is complex without FileProvider.
-            // Or try to share as text but with .csv extension hint?
-            // Let's fallback to sharing TEXT content if we can't easily do file uri.
-            // Actually, we can use StrictMode hack or just share text content.
-            // Given "Export Results" usually implies a file, let's try to just write to a public path if permission allows? No, Scoped Storage.
-            // Safest: Share as Text, user can save as CSV.
-            // OR: Action Create Document.
-
-            // Let's use Action Send with text content, but title it CSV.
-            Intent shareText = new Intent(Intent.ACTION_SEND);
-            shareText.setType("text/plain");
-            shareText.putExtra(Intent.EXTRA_SUBJECT, "Export.csv");
-            shareText.putExtra(Intent.EXTRA_TEXT, csv.toString());
-            startActivity(Intent.createChooser(shareText, "Save CSV"));
-
-        } catch (Exception e) {
-            Toast.makeText(this, "Export failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        if (sb.length() == 0) {
+            Toast.makeText(this, "Nothing to export.", Toast.LENGTH_SHORT).show();
+            return;
         }
+
+        // Copy to clipboard option or Share
+        new AlertDialog.Builder(this)
+            .setTitle("Export Options")
+            .setItems(new String[]{"Copy to Clipboard", "Share Text"}, (d, which) -> {
+                if (which == 0) {
+                    ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                    ClipData clip = ClipData.newPlainText("DTECH Results", sb.toString());
+                    clipboard.setPrimaryClip(clip);
+                    Toast.makeText(this, "Copied!", Toast.LENGTH_SHORT).show();
+                } else {
+                    exportText(sb.toString(), successOnly ? "Success Results" : "All Results");
+                }
+            })
+            .show();
+    }
+
+    private void exportText(String text, String title) {
+        Intent shareText = new Intent(Intent.ACTION_SEND);
+        shareText.setType("text/plain");
+        shareText.putExtra(Intent.EXTRA_SUBJECT, title);
+        shareText.putExtra(Intent.EXTRA_TEXT, text);
+        startActivity(Intent.createChooser(shareText, "Share Results"));
     }
 }

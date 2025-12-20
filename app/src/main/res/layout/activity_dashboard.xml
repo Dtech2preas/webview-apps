@@ -1,120 +1,152 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#121212"
-    android:padding="16dp">
+    android:background="@color/dtech_background_black">
 
-    <!-- Header -->
-    <TextView
-        android:id="@+id/tv_header"
-        android:layout_width="wrap_content"
+    <!-- Header Section -->
+    <LinearLayout
+        android:id="@+id/layout_header"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="DTECH"
-        android:textSize="32sp"
-        android:textStyle="bold"
-        android:textColor="#2196F3"
-        android:layout_centerHorizontal="true"
-        android:layout_marginTop="24dp"
-        android:layout_marginBottom="24dp" />
+        android:orientation="vertical"
+        android:gravity="center"
+        android:paddingTop="32dp"
+        android:paddingBottom="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="D-TECH"
+            android:textSize="36sp"
+            android:textStyle="bold"
+            android:textColor="@color/dtech_cyan"
+            android:letterSpacing="0.1" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="AUTOMATION SYSTEMS"
+            android:textSize="12sp"
+            android:textColor="@color/dtech_text_secondary"
+            android:letterSpacing="0.2" />
+
+        <!-- System Status -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_capsule_status"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp">
+
+            <View
+                android:id="@+id/view_status_pulse"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:background="@drawable/shape_circle_pulse" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SYSTEM READY"
+                android:textSize="10sp"
+                android:textColor="@color/dtech_cyan"
+                android:textStyle="bold"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+    </LinearLayout>
 
     <!-- Scrollable Content -->
-    <ScrollView
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/tv_header"
+        android:layout_below="@id/layout_header"
         android:layout_above="@id/tv_footer"
-        android:fillViewport="true">
+        android:clipToPadding="false"
+        android:paddingBottom="24dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:gravity="center_horizontal">
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
 
-            <!-- Quick Start Card -->
-            <LinearLayout
+            <!-- Quick Resume Card -->
+            <com.google.android.material.card.MaterialCardView
                 android:id="@+id/card_quick_resume"
+                style="@style/DTechCard"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_card"
-                android:orientation="vertical"
-                android:padding="20dp"
                 android:layout_marginBottom="24dp"
                 android:visibility="gone">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="QUICK RESUME"
-                    android:textColor="#AAAAAA"
-                    android:textSize="12sp"
-                    android:letterSpacing="0.1" />
-
-                <TextView
-                    android:id="@+id/tv_last_service"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Loading..."
-                    android:textColor="#FFFFFF"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginBottom="16dp"/>
-
-                <Button
-                    android:id="@+id/btn_quick_start"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="RUN AUTOMATION"
-                    android:textColor="#FFFFFF"
-                    android:background="@drawable/bg_button"
-                    android:textAllCaps="true" />
-            </LinearLayout>
+                    android:orientation="vertical"
+                    android:padding="20dp">
 
-            <!-- Main Menu Buttons -->
-            <Button
-                android:id="@+id/btn_open_automation"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:text="Open Automation"
-                android:textSize="16sp"
-                android:textColor="#FFFFFF"
-                android:background="@drawable/bg_button"
-                android:layout_marginBottom="16dp"/>
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
 
-            <Button
-                android:id="@+id/btn_results_history"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:text="Results History"
-                android:textSize="16sp"
-                android:textColor="#FFFFFF"
-                android:background="@drawable/bg_button"
-                android:layout_marginBottom="16dp"/>
+                        <ImageView
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:src="@android:drawable/ic_media_play"
+                            app:tint="@color/dtech_purple" />
 
-            <Button
-                android:id="@+id/btn_ad_system"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:text="Ad System"
-                android:textSize="16sp"
-                android:textColor="#FFFFFF"
-                android:background="@drawable/bg_button"
-                android:layout_marginBottom="16dp"/>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="RESUME SESSION"
+                            android:textColor="@color/dtech_purple"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:layout_marginStart="8dp"
+                            android:letterSpacing="0.1" />
+                    </LinearLayout>
 
-             <Button
-                android:id="@+id/btn_info_help"
+                    <TextView
+                        android:id="@+id/tv_last_service"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Service Name"
+                        android:textColor="@color/dtech_text_primary"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginBottom="16dp"/>
+
+                    <Button
+                        android:id="@+id/btn_quick_start"
+                        style="@style/DTechButton.Accent"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="EXECUTE NOW" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Command Center Grid -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recycler_menu"
                 android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:text="Info &amp; Help"
-                android:textSize="16sp"
-                android:textColor="#FFFFFF"
-                android:background="@drawable/bg_button"
-                android:layout_marginBottom="16dp"/>
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false"
+                android:overScrollMode="never" />
 
         </LinearLayout>
-    </ScrollView>
+    </androidx.core.widget.NestedScrollView>
 
     <!-- Footer -->
     <TextView
@@ -122,10 +154,11 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Made by Preasx24"
-        android:textColor="#666666"
-        android:textSize="12sp"
+        android:textColor="@color/dtech_text_secondary"
+        android:textSize="10sp"
         android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true"
-        android:layout_marginBottom="16dp"/>
+        android:layout_marginBottom="16dp"
+        android:fontFamily="monospace"/>
 
 </RelativeLayout>
