@@ -5,21 +5,20 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Switch;
 import android.widget.Toast;
 
 public class SettingsActivity extends Activity {
 
     private EditText etCredentials;
     private Button btnSave;
+    private Switch switchBiometric;
+    private Switch switchEvidence;
 
-    // We still use AutomationPrefs, but keys will be dynamic based on ServiceID
     public static final String PREFS_NAME = "AutomationPrefs";
-
-    // Legacy key, kept just in case, but we will use service-specific keys
-    // public static final String KEY_CREDENTIALS = "saved_credentials";
-
     private String currentServiceId;
     private ServiceRepository serviceRepo;
+    private SecurityManager securityManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -29,26 +28,38 @@ public class SettingsActivity extends Activity {
 
         etCredentials = findViewById(R.id.et_credentials);
         btnSave = findViewById(R.id.btn_save);
+        switchBiometric = findViewById(R.id.switch_biometric);
+        switchEvidence = findViewById(R.id.switch_evidence);
 
         serviceRepo = new ServiceRepository(this);
+        securityManager = new SecurityManager(this);
+
         currentServiceId = serviceRepo.getLastUsedServiceId();
 
+        // Load Global Security Settings
+        switchBiometric.setChecked(securityManager.isBiometricEnabled());
+        switchEvidence.setChecked(securityManager.isEvidenceEnabled());
+
+        // Load Service Specific Credentials
         ServiceRepository.ServiceData service = null;
         if (currentServiceId != null) {
             service = serviceRepo.getServiceById(currentServiceId);
         }
 
         if (service != null) {
-             setTitle("Settings: " + service.getName());
              loadCredentials(service.getId());
         } else {
-             setTitle("Settings (No Service Selected)");
-             // Fallback to global if no service selected (shouldn't happen in new flow)
              loadCredentials("global");
         }
 
         final String targetId = (currentServiceId != null) ? currentServiceId : "global";
-        btnSave.setOnClickListener(v -> saveCredentials(targetId));
+        btnSave.setOnClickListener(v -> {
+            saveCredentials(targetId);
+            securityManager.setBiometricEnabled(switchBiometric.isChecked());
+            securityManager.setEvidenceEnabled(switchEvidence.isChecked());
+            Toast.makeText(this, "Settings Saved", Toast.LENGTH_SHORT).show();
+            finish();
+        });
     }
 
     private void loadCredentials(String serviceId) {
@@ -63,9 +74,6 @@ public class SettingsActivity extends Activity {
         SharedPreferences.Editor editor = prefs.edit();
         editor.putString("creds_" + serviceId, input);
         editor.apply();
-
-        Toast.makeText(this, "Credentials Saved", Toast.LENGTH_SHORT).show();
-        finish();
     }
 
     @Override

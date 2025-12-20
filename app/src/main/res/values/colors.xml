@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cyberpunk Theme Colors -->
+    <color name="cyber_black">#121212</color>
+    <color name="cyber_dark_gray">#1E1E1E</color>
+    <color name="cyber_panel_bg">#2D2D2D</color>
+
+    <color name="cyber_cyan">#00E5FF</color>
+    <color name="cyber_cyan_dim">#4D00E5FF</color>
+
+    <color name="cyber_red">#FF1744</color>
+    <color name="cyber_red_dim">#4DFF1744</color>
+
+    <color name="cyber_green">#00E676</color>
+    <color name="cyber_text_primary">#FFFFFF</color>
+    <color name="cyber_text_secondary">#B0B0B0</color>
+
+    <color name="transparent_black">#CC000000</color>
+
+    <!-- Standard Overrides -->
+    <color name="colorPrimary">@color/cyber_cyan</color>
+    <color name="colorPrimaryDark">@color/cyber_black</color>
+    <color name="colorAccent">@color/cyber_red</color>
+</resources>

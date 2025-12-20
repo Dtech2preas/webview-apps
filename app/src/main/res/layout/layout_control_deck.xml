@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/control_deck_container"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_control_deck"
+    app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
+
+    <!-- Handle / Status Bar (Always Visible) -->
+    <LinearLayout
+        android:id="@+id/deck_handle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="16dp">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_menu_sort_by_size"
+            app:tint="@color/cyber_cyan" />
+
+        <TextView
+            android:id="@+id/tv_deck_status"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="SYSTEM READY"
+            android:textColor="@color/cyber_cyan"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:layout_marginStart="12dp"/>
+
+        <TextView
+            android:id="@+id/tv_deck_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="--/--"
+            android:textColor="@color/cyber_text_secondary"
+            android:fontFamily="monospace"/>
+
+    </LinearLayout>
+
+    <!-- Expanded Content -->
+    <LinearLayout
+        android:id="@+id/deck_content"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Status Terminal -->
+        <TextView
+            android:id="@+id/tv_terminal_log"
+            android:layout_width="match_parent"
+            android:layout_height="80dp"
+            android:background="@color/cyber_black"
+            android:padding="8dp"
+            android:text="> Initializing...\n> Waiting for command."
+            android:textColor="@color/cyber_green"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:scrollbars="vertical"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Main Actions Grid -->
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:columnCount="2"
+            android:rowCount="2">
+
+            <!-- Record -->
+            <Button
+                android:id="@+id/btn_deck_record"
+                style="@style/CyberButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:text="RECORD"
+                android:layout_marginEnd="8dp"
+                android:layout_marginBottom="8dp"/>
+
+            <!-- Play -->
+            <Button
+                android:id="@+id/btn_deck_play"
+                style="@style/CyberButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:text="EXECUTE BATCH"
+                android:layout_marginStart="8dp"
+                android:layout_marginBottom="8dp"/>
+
+            <!-- Stop (Red) -->
+            <Button
+                android:id="@+id/btn_deck_stop"
+                style="@style/CyberButton.Alert"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:text="STOP"
+                android:layout_marginEnd="8dp"
+                android:visibility="invisible"/>
+
+            <!-- Stealth Mode -->
+            <Button
+                android:id="@+id/btn_deck_stealth"
+                style="@style/CyberButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:text="STEALTH MODE"
+                android:layout_marginStart="8dp"
+                android:backgroundTint="#333333"
+                android:textColor="#AAAAAA"/>
+
+        </GridLayout>
+
+        <!-- Navigation Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                android:id="@+id/nav_services"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="SERVICES"
+                android:gravity="center"
+                android:textColor="@color/cyber_text_secondary"
+                android:textSize="12sp"
+                android:drawableTop="@android:drawable/ic_menu_myplaces"/>
+
+            <TextView
+                android:id="@+id/nav_results"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="RESULTS"
+                android:gravity="center"
+                android:textColor="@color/cyber_text_secondary"
+                android:textSize="12sp"
+                android:drawableTop="@android:drawable/ic_menu_save"/>
+
+            <TextView
+                android:id="@+id/nav_settings"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="SETTINGS"
+                android:gravity="center"
+                android:textColor="@color/cyber_text_secondary"
+                android:textSize="12sp"
+                android:drawableTop="@android:drawable/ic_menu_preferences"/>
+
+            <TextView
+                android:id="@+id/nav_info"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="INFO"
+                android:gravity="center"
+                android:textColor="@color/cyber_text_secondary"
+                android:textSize="12sp"
+                android:drawableTop="@android:drawable/ic_menu_info_details"/>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>
