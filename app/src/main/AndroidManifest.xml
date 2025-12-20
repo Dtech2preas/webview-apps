@@ -11,6 +11,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
+    <!-- Needed for legacy support on Android 9 and below -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <application
         android:allowBackup="true"
@@ -21,7 +25,17 @@
 
         <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="ocr" />
 
-        <!-- Dashboard Activity (New Home screen) -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.dtech.automation.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/provider_paths" />
+        </provider>
+
+        <!-- Dashboard Activity (Home Screen) -->
         <activity
             android:name=".DashboardActivity"
             android:exported="true"
@@ -32,12 +46,23 @@
             </intent-filter>
         </activity>
 
-        <!-- Main Activity -->
+        <!-- Main Activity (File Handler & Core Logic) -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:configChanges="orientation|screenSize">
-            <!-- Launcher intent removed -->
+
+            <!-- File Association for .dtech -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="*/*" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.dtech" />
+            </intent-filter>
         </activity>
 
         <!-- Results History -->

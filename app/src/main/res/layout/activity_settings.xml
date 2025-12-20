@@ -2,7 +2,7 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#121212">
+    android:background="@color/cyber_black">
 
     <!-- Background Logo -->
     <ImageView
@@ -10,52 +10,82 @@
         android:layout_height="match_parent"
         android:src="@drawable/dtech_logo"
         android:scaleType="centerCrop"
-        android:alpha="0.15" />
+        android:alpha="0.1" />
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:layout_height="match_parent">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Enter Credentials (email:password)"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:textColor="#FFFFFF"
-            android:layout_marginBottom="8dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="One pair per line"
-            android:textSize="14sp"
-            android:textColor="#BBBBBB"
-            android:layout_marginBottom="8dp"/>
-
-        <EditText
-            android:id="@+id/et_credentials"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:gravity="top|start"
-            android:hint="user@example.com:password123"
-            android:textColorHint="#888888"
-            android:inputType="textMultiLine"
-            android:background="#33FFFFFF"
-            android:textColor="#FFFFFF"
-            android:padding="8dp"/>
-
-        <Button
-            android:id="@+id/btn_save"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Save"
-            android:backgroundTint="#2196F3"
-            android:textColor="#FFFFFF"
-            android:layout_marginTop="16dp"/>
+            android:orientation="vertical"
+            android:padding="16dp">
 
-    </LinearLayout>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SECURITY"
+                android:textColor="@color/cyber_cyan"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp"/>
+
+            <Switch
+                android:id="@+id/switch_biometric"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Biometric Lock"
+                android:textColor="@color/cyber_text_primary"
+                android:thumbTint="@color/cyber_cyan"
+                android:trackTint="@color/cyber_dark_gray"
+                android:layout_marginBottom="12dp"/>
+
+             <Switch
+                android:id="@+id/switch_evidence"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Evidence Locker (Save Screenshots)"
+                android:textColor="@color/cyber_text_primary"
+                android:thumbTint="@color/cyber_cyan"
+                android:trackTint="@color/cyber_dark_gray"
+                android:layout_marginBottom="24dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="CREDENTIALS"
+                android:textColor="@color/cyber_cyan"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="One pair per line (email:password)"
+                android:textSize="14sp"
+                android:textColor="@color/cyber_text_secondary"
+                android:layout_marginBottom="8dp"/>
+
+            <EditText
+                android:id="@+id/et_credentials"
+                android:layout_width="match_parent"
+                android:layout_height="300dp"
+                android:gravity="top|start"
+                android:hint="user@example.com:password123"
+                android:textColorHint="@color/cyber_text_secondary"
+                android:inputType="textMultiLine"
+                android:background="@drawable/bg_control_deck"
+                android:padding="16dp"
+                android:textColor="@color/cyber_text_primary"/>
+
+            <Button
+                android:id="@+id/btn_save"
+                style="@style/CyberButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="SAVE SETTINGS"
+                android:layout_marginTop="24dp"/>
+
+        </LinearLayout>
+    </ScrollView>
 </FrameLayout>

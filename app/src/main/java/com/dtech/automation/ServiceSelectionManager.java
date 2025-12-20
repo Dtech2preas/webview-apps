@@ -2,15 +2,22 @@ package com.dtech.automation;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.graphics.Color;
+import android.net.Uri;
 import android.text.InputType;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.core.content.FileProvider;
+
+import java.io.File;
 import java.util.List;
 import java.util.UUID;
 
@@ -19,35 +26,44 @@ public class ServiceSelectionManager {
     private final Context context;
     private final ServiceRepository repo;
     private final OnServiceSelectedListener listener;
+    private final DTechFileManager fileManager;
 
     public interface OnServiceSelectedListener {
         void onServiceSelected(ServiceRepository.ServiceData service);
+        // Optional: Method to request import, handled by the implementer (Activity)
+        default void onImportRequested() {}
     }
 
     public ServiceSelectionManager(Context context, OnServiceSelectedListener listener) {
         this.context = context;
         this.repo = new ServiceRepository(context);
         this.listener = listener;
+        this.fileManager = new DTechFileManager(context);
     }
 
     public void showServiceSelectionDialog() {
         List<ServiceRepository.ServiceData> services = repo.getAllServices();
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(context);
-        builder.setTitle("Select Service");
+        android.app.Dialog dialog = new android.app.Dialog(context);
+        dialog.setContentView(R.layout.dialog_service_list);
+        if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
 
-        View view = LayoutInflater.from(context).inflate(R.layout.dialog_service_list, null);
-        ListView listView = view.findViewById(R.id.list_services);
-        View btnAdd = view.findViewById(R.id.btn_add_service);
-        View btnImport = view.findViewById(R.id.btn_import_service);
+        ListView listView = dialog.findViewById(R.id.list_services);
+        View btnAdd = dialog.findViewById(R.id.btn_add_service);
+        View btnImport = dialog.findViewById(R.id.btn_import_service);
 
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(context, android.R.layout.simple_list_item_1);
-        for (ServiceRepository.ServiceData s : services) {
-            adapter.add(s.getName());
-        }
+        ArrayAdapter<ServiceRepository.ServiceData> adapter = new ArrayAdapter<ServiceRepository.ServiceData>(context, android.R.layout.simple_list_item_1, services) {
+             @Override
+             public View getView(int position, View convertView, ViewGroup parent) {
+                 View v = super.getView(position, convertView, parent);
+                 TextView tv = (TextView) v.findViewById(android.R.id.text1);
+                 tv.setTextColor(Color.WHITE);
+                 tv.setTextSize(16);
+                 tv.setPadding(0, 20, 0, 20);
+                 return v;
+             }
+        };
         listView.setAdapter(adapter);
-
-        AlertDialog dialog = builder.setView(view).create();
 
         listView.setOnItemClickListener((parent, v, position, id) -> {
             ServiceRepository.ServiceData selected = services.get(position);
@@ -56,15 +72,14 @@ public class ServiceSelectionManager {
             dialog.dismiss();
         });
 
-        // Long click for Options (Delete, Export, Edit)
+        // Long click for Options
         listView.setOnItemLongClickListener((parent, v, position, id) -> {
             ServiceRepository.ServiceData selected = services.get(position);
-            String[] options = {"Delete", "Export JSON", "Edit Settings", "Cancel"};
+            String[] options = {"Delete", "Export .dtech", "Export JSON (Legacy)", "Edit Settings", "Cancel"};
             new AlertDialog.Builder(context)
                 .setTitle(selected.getName())
                 .setItems(options, (d, w) -> {
-                     if (w == 0) {
-                         // Delete
+                     if (w == 0) { // Delete
                          new AlertDialog.Builder(context)
                             .setTitle("Confirm Delete")
                             .setMessage("Are you sure?")
@@ -75,11 +90,11 @@ public class ServiceSelectionManager {
                             })
                             .setNegativeButton("No", null)
                             .show();
-                     } else if (w == 1) {
-                         // Export
-                         exportService(selected.getId());
-                     } else if (w == 2) {
-                         // Edit Settings (UA)
+                     } else if (w == 1) { // Export .dtech
+                         exportServiceDtech(selected);
+                     } else if (w == 2) { // Export JSON
+                         exportServiceJson(selected);
+                     } else if (w == 3) { // Edit Settings
                          showEditServiceDialog(selected);
                          dialog.dismiss();
                      }
@@ -94,51 +109,46 @@ public class ServiceSelectionManager {
         });
 
         btnImport.setOnClickListener(v -> {
-            // Since we cannot use startActivityForResult in a non-Activity class easily without passing activity,
-            // we will ask the user to paste JSON content OR rely on MainActivity to handle file picking.
-            // For simplicity and robustness given the constraints, let's use a "Paste JSON" dialog first,
-            // or if context is Activity, use File Picker.
-            if (context instanceof android.app.Activity) {
+            // Check if context is capable, or delegate to listener
+            if (context instanceof MainActivity) {
                 ((MainActivity) context).initiateImport();
                 dialog.dismiss();
             } else {
-                showPasteImportDialog();
+                // If called from Dashboard or other context, try listener delegation
+                // or just show a Toast that this feature requires the main view.
+                // However, listener might implement it (Dashboard could implement initiateImport logic too)
+                // For now, safest is to check MainActivity.
+                 Toast.makeText(context, "Please open a Service to import files.", Toast.LENGTH_SHORT).show();
             }
         });
 
         dialog.show();
     }
 
-    private void showPasteImportDialog() {
-        final EditText input = new EditText(context);
-        input.setHint("Paste JSON here...");
-        new AlertDialog.Builder(context)
-            .setTitle("Import Service (Paste JSON)")
-            .setView(input)
-            .setPositiveButton("Import", (d, w) -> {
-                String json = input.getText().toString().trim();
-                if (repo.importService(json)) {
-                    Toast.makeText(context, "Import Successful!", Toast.LENGTH_SHORT).show();
-                    showServiceSelectionDialog();
-                } else {
-                    Toast.makeText(context, "Invalid JSON", Toast.LENGTH_SHORT).show();
-                }
-            })
-            .setNegativeButton("Cancel", null)
-            .show();
+    private void exportServiceDtech(ServiceRepository.ServiceData service) {
+        File file = fileManager.exportServiceToFile(service);
+        if (file != null) {
+            Uri contentUri = FileProvider.getUriForFile(context, "com.dtech.automation.fileprovider", file);
+
+            android.content.Intent shareIntent = new android.content.Intent();
+            shareIntent.setAction(android.content.Intent.ACTION_SEND);
+            shareIntent.putExtra(android.content.Intent.EXTRA_STREAM, contentUri);
+            shareIntent.setType("application/octet-stream");
+            shareIntent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+            context.startActivity(android.content.Intent.createChooser(shareIntent, "Share .dtech File"));
+        } else {
+            Toast.makeText(context, "Export Failed", Toast.LENGTH_SHORT).show();
+        }
     }
 
-    private void exportService(String id) {
-        String json = repo.exportService(id);
+    private void exportServiceJson(ServiceRepository.ServiceData service) {
+        String json = repo.exportService(service.getId());
         if (json != null) {
-            // Save to file in public directory or share intent
-            // Since we are in an Activity usually, let's use Share Intent for text
             android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_SEND);
             i.setType("text/plain");
             i.putExtra(android.content.Intent.EXTRA_TEXT, json);
-            context.startActivity(android.content.Intent.createChooser(i, "Export Service Config"));
-        } else {
-            Toast.makeText(context, "Export Failed", Toast.LENGTH_SHORT).show();
+            context.startActivity(android.content.Intent.createChooser(i, "Export JSON Config"));
         }
     }
 
