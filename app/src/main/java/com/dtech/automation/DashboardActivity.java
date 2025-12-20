@@ -74,7 +74,7 @@ public class DashboardActivity extends Activity {
             startActivity(new Intent(DashboardActivity.this, MainActivity.class));
         }));
         options.add(new MenuOption("Results History", android.R.drawable.ic_menu_recent_history, () -> {
-            startActivity(new Intent(DashboardActivity.this, ResultsHistoryActivity.class));
+            startActivity(new Intent(DashboardActivity.this, SimpleResultsActivity.class));
         }));
         options.add(new MenuOption("Ad System", android.R.drawable.ic_menu_slideshow, () -> {
             startActivity(new Intent(DashboardActivity.this, AdSystemActivity.class));
