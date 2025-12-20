@@ -46,6 +46,10 @@ public class ResultsHistoryActivity extends Activity {
         setContentView(R.layout.activity_results_history);
 
         repo = new BatchResultRepository(this);
+        if (repo == null) {
+            finish();
+            return;
+        }
 
         viewGraphSuccess = findViewById(R.id.viewGraphSuccess);
         viewGraphFailure = findViewById(R.id.viewGraphFailure);
@@ -178,33 +182,38 @@ public class ResultsHistoryActivity extends Activity {
     }
 
     private void updateChartData(int s, int f) {
-        int total = s + f;
+        try {
+            int total = s + f;
 
-        // Update Text Stats
-        tvTotal.setText("Total: " + total);
-        tvSuccess.setText("Success: " + s);
-        tvFail.setText("Failures: " + f);
+            // Update Text Stats
+            tvTotal.setText("Total: " + total);
+            tvSuccess.setText("Success: " + s);
+            tvFail.setText("Failures: " + f);
 
-        int rate = total > 0 ? (int)((float)s / total * 100) : 0;
-        tvRate.setText("Success Rate: " + rate + "%");
+            int rate = total > 0 ? (int)((float)s / total * 100) : 0;
+            tvRate.setText("Success Rate: " + rate + "%");
 
-        // Update Graph Weights
-        float weightSuccess = 0;
-        float weightFailure = 0;
+            // Update Graph Weights
+            float weightSuccess = 0;
+            float weightFailure = 0;
 
-        if (total > 0) {
-            weightSuccess = (float)s / total * 100f;
-            weightFailure = (float)f / total * 100f;
+            if (total > 0) {
+                weightSuccess = (float)s / total * 100f;
+                weightFailure = (float)f / total * 100f;
+            }
+
+            // Apply Weights
+            LinearLayout.LayoutParams paramsS = (LinearLayout.LayoutParams) viewGraphSuccess.getLayoutParams();
+            paramsS.weight = weightSuccess;
+            viewGraphSuccess.setLayoutParams(paramsS);
+
+            LinearLayout.LayoutParams paramsF = (LinearLayout.LayoutParams) viewGraphFailure.getLayoutParams();
+            paramsF.weight = weightFailure;
+            viewGraphFailure.setLayoutParams(paramsF);
+        } catch (Exception e) {
+            android.util.Log.e("DTECH_ERROR", "Graph failed to load", e);
+            Toast.makeText(this, "Error loading graph", Toast.LENGTH_SHORT).show();
         }
-
-        // Apply Weights
-        LinearLayout.LayoutParams paramsS = (LinearLayout.LayoutParams) viewGraphSuccess.getLayoutParams();
-        paramsS.weight = weightSuccess;
-        viewGraphSuccess.setLayoutParams(paramsS);
-
-        LinearLayout.LayoutParams paramsF = (LinearLayout.LayoutParams) viewGraphFailure.getLayoutParams();
-        paramsF.weight = weightFailure;
-        viewGraphFailure.setLayoutParams(paramsF);
     }
 
     private void showGlobalRunDetails(BatchResultRepository.BatchRun run) {
