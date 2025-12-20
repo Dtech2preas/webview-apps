@@ -1305,17 +1305,6 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     }
 
     private void stopBatch() {
-        if (isBatchRunning) {
-            BatchResultRepository repo = new BatchResultRepository(this);
-            repo.saveRun(new BatchResultRepository.BatchRun(
-                System.currentTimeMillis(),
-                currentService != null ? currentService.getName() : "Unknown",
-                batchSuccessCount,
-                batchFailureCount,
-                batchLogFileName
-            ));
-        }
-
         isBatchRunning = false;
         isReplaying = false;
         isWaitingForNext = false;
@@ -1674,7 +1663,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
 
     private void showBatchResults() {
         try {
-            startActivity(new Intent(this, ResultsHistoryActivity.class));
+            startActivity(new Intent(this, SimpleResultsActivity.class));
         } catch (Exception e) {
             Log.e(TAG, "Failed to open results", e);
             Toast.makeText(this, "Error opening results", Toast.LENGTH_SHORT).show();
