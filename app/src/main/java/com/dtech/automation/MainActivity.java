@@ -230,7 +230,11 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
             // Legacy Import
             ServiceRepository.ServiceData s = fileManager.importServiceFromUri(uri);
             if (s != null) {
-                s = new ServiceRepository.ServiceData(java.util.UUID.randomUUID().toString(), s.getName() + " (Imported)", s.getLoginUrl());
+                String newName = s.getName();
+                if (!newName.toLowerCase().endsWith("(imported)")) {
+                    newName += " (Imported)";
+                }
+                s = new ServiceRepository.ServiceData(java.util.UUID.randomUUID().toString(), newName, s.getLoginUrl());
                 serviceRepo.addOrUpdateService(s);
                 Toast.makeText(this, "Service Imported: " + s.getName(), Toast.LENGTH_LONG).show();
                 onServiceSelected(s);
@@ -920,9 +924,13 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
 
     private void finalizeImport(ServiceRepository.ServiceData s) {
         // Create a full copy with new ID and Name to preserve all automation data
+        String newName = s.getName();
+        if (!newName.toLowerCase().endsWith("(imported)")) {
+            newName += " (Imported)";
+        }
         ServiceRepository.ServiceData imported = new ServiceRepository.ServiceData(
             java.util.UUID.randomUUID().toString(),
-            s.getName() + " (Imported)",
+            newName,
             s.getLoginUrl()
         );
         // Critical: Copy steps and validation rules
@@ -1280,7 +1288,8 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
              return;
         }
 
-        if (currentSessionEvents.isEmpty()) {
+        boolean isImported = currentService.getName().toLowerCase().contains("(imported)");
+        if (currentSessionEvents.isEmpty() && !isImported) {
             new AlertDialog.Builder(this)
                 .setTitle("No Recording Found")
                 .setMessage("You need to record the login actions first.")
