@@ -280,33 +280,13 @@
             el.dispatchEvent(mouseUp);
             el.dispatchEvent(clickEvent);
 
-            // Native fallback (only if not coordinate mode, or maybe always?)
-            // If coordinate mode, el might be body or something wrong, so be careful with .click()
-            // But if we found an elementFromPoint, .click() is good.
+            // Native fallback
             if (!coordinateMode || (forcedCoords && el !== document.body)) {
                  setTimeout(function(){ try { el.click(); } catch(e){} }, 10);
             }
 
         } else if (event.type === 'input') {
-            // SUBSTITUTION LOGIC
             var valToSet = event.value;
-
-            // SMART INTERCEPTOR:
-            // If the browser has global overrides set by Java, use them!
-            if (window.DTECH_AUTO_EMAIL && window.DTECH_AUTO_PASS) {
-                // Heuristic: Is this a password field?
-                var inputType = (el.type || "").toLowerCase();
-
-                if (inputType === 'password') {
-                    valToSet = window.DTECH_AUTO_PASS;
-                    console.log("DTECH: Injecting Batch Password");
-                }
-                // Heuristic: Is the recorded value an email? OR is the field type email?
-                else if (valToSet.includes('@') || inputType === 'email') {
-                    valToSet = window.DTECH_AUTO_EMAIL;
-                    console.log("DTECH: Injecting Batch Email");
-                }
-            }
 
             // React/Angular Value Setter workaround
             var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
@@ -318,7 +298,6 @@
 
             el.dispatchEvent(new Event('input', { bubbles: true }));
             el.dispatchEvent(new Event('change', { bubbles: true }));
-            // Dispatch key events to simulate typing? (Simplified for now)
             el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
             el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
 
