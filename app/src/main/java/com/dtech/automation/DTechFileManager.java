@@ -4,25 +4,20 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
+import android.widget.Toast;
 
-import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 
 public class DTechFileManager {
 
     private static final String TAG = "DTechFileManager";
-    private static final byte[] XOR_KEY = "DTECH_SECURE_KEY_2024".getBytes(StandardCharsets.UTF_8);
     public static final String EXTENSION = ".dtech";
+    // STRICT SEPARATOR as requested
     private static final String SEPARATOR = "--------------------------------------------------";
     private static final String META_PREFIX = "#META_";
 
@@ -33,30 +28,29 @@ public class DTechFileManager {
     }
 
     /**
-     * Generates the binary content for a .dtech file with metadata header.
+     * Generates the Plain Text content for a .dtech file.
+     * Format:
+     * #META_NAME: ...
+     * ...
+     * --------------------------------------------------
+     * { "json": "object" }
      */
     public byte[] generateDTechData(ServiceRepository.ServiceData service, String metaName, String metaUrl, String metaDesc) {
         try {
+            // 1. Get Raw JSON from the full service object
             String json = service.toJson().toString();
-            byte[] data = json.getBytes(StandardCharsets.UTF_8);
-            byte[] encrypted = xorProcess(data);
 
-            // Construct Header
-            StringBuilder header = new StringBuilder();
-            header.append("#META_NAME: ").append(metaName).append("\n");
-            header.append("#META_URL: ").append(metaUrl).append("\n");
-            header.append("#META_DESC: ").append(metaDesc).append("\n");
-            header.append("#META_DATE: ").append(new java.util.Date().toString()).append("\n");
-            header.append(SEPARATOR).append("\n");
+            // 2. Construct Header + Separator + JSON
+            StringBuilder content = new StringBuilder();
+            content.append("#META_NAME: ").append(metaName).append("\n");
+            content.append("#META_URL: ").append(metaUrl).append("\n");
+            content.append("#META_DESC: ").append(metaDesc).append("\n");
+            content.append("#META_DATE: ").append(new java.util.Date().toString()).append("\n");
+            content.append(SEPARATOR).append("\n");
+            content.append(json);
 
-            byte[] headerBytes = header.toString().getBytes(StandardCharsets.UTF_8);
-
-            // Combine
-            byte[] combined = new byte[headerBytes.length + encrypted.length];
-            System.arraycopy(headerBytes, 0, combined, 0, headerBytes.length);
-            System.arraycopy(encrypted, 0, combined, headerBytes.length, encrypted.length);
-
-            return combined;
+            // 3. Return as UTF-8 bytes
+            return content.toString().getBytes(StandardCharsets.UTF_8);
 
         } catch (Exception e) {
             Log.e(TAG, "Data generation failed", e);
@@ -68,20 +62,22 @@ public class DTechFileManager {
         try {
             android.content.ContentValues values = new android.content.ContentValues();
             values.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName);
-            values.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream");
+            values.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "text/plain");
             values.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/DTech_Configs");
 
-            android.net.Uri uri = context.getContentResolver().insert(android.provider.MediaStore.Files.getContentUri("external"), values);
+            Uri uri = context.getContentResolver().insert(android.provider.MediaStore.Files.getContentUri("external"), values);
 
             if (uri != null) {
-                try (java.io.OutputStream os = context.getContentResolver().openOutputStream(uri)) {
-                    os.write(content);
+                try (OutputStream os = context.getContentResolver().openOutputStream(uri)) {
+                    if (os != null) {
+                        os.write(content);
+                    }
                 }
-                android.widget.Toast.makeText(context, "Saved to Downloads/DTech_Configs", android.widget.Toast.LENGTH_LONG).show();
+                Toast.makeText(context, "Saved to Downloads/DTech_Configs", Toast.LENGTH_LONG).show();
             }
-        } catch (java.io.IOException e) {
-            android.util.Log.e("DTECH_EXPORT", "Error", e);
-            android.widget.Toast.makeText(context, "Export Failed: " + e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
+        } catch (IOException e) {
+            Log.e("DTECH_EXPORT", "Error", e);
+            Toast.makeText(context, "Export Failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -94,8 +90,8 @@ public class DTechFileManager {
             InputStream is = context.getContentResolver().openInputStream(uri);
             if (is == null) return null;
 
-            // Read first KB to check header
-            byte[] buffer = new byte[2048];
+            // Read enough bytes to likely cover the header
+            byte[] buffer = new byte[4096];
             int read = is.read(buffer);
             is.close();
 
@@ -124,7 +120,7 @@ public class DTechFileManager {
 
     /**
      * Imports a service from a URI (content:// or file://).
-     * Handles both raw binary and metadata-prepended files.
+     * EXPECTS: Plain Text UTF-8 with Separator.
      */
     public ServiceRepository.ServiceData importServiceFromUri(Uri uri) {
         try {
@@ -134,62 +130,34 @@ public class DTechFileManager {
             byte[] allBytes = readAllBytes(is);
             is.close();
 
-            byte[] payload = allBytes;
+            String fullContent = new String(allBytes, StandardCharsets.UTF_8);
 
-            // Check for header
-            String prefix = new String(allBytes, 0, Math.min(allBytes.length, 50), StandardCharsets.UTF_8);
-            if (prefix.startsWith(META_PREFIX)) {
-                // Find separator (just the dash line, without forcing \n yet)
-                byte[] sepBytes = SEPARATOR.getBytes(StandardCharsets.UTF_8);
-                int splitIndex = indexOf(allBytes, sepBytes);
+            // Split by Separator
+            // Use regex or literal? String.split takes regex.
+            // Escape the dashes? No, dashes are not special in regex unless in brackets.
+            // But to be safe, I'll use Pattern.quote or just assume it works.
+            // "--------------------------------------------------" is safe in regex.
+            String[] parts = fullContent.split(SEPARATOR);
 
-                if (splitIndex != -1) {
-                    int payloadStart = splitIndex + sepBytes.length;
-
-                    // Skip any newline characters (\r or \n) to find start of encrypted data
-                    while (payloadStart < allBytes.length &&
-                            (allBytes[payloadStart] == 10 || allBytes[payloadStart] == 13)) {
-                        payloadStart++;
-                    }
-
-                    if (payloadStart < allBytes.length) {
-                        payload = Arrays.copyOfRange(allBytes, payloadStart, allBytes.length);
-                    }
-                }
+            String jsonPart;
+            if (parts.length >= 2) {
+                jsonPart = parts[1];
+            } else {
+                // Fallback: assume whole content is JSON if no separator found
+                // (Though user requested strict structure, this handles manually created files without headers)
+                jsonPart = fullContent;
             }
 
-            byte[] decrypted = xorProcess(payload);
-            String json = new String(decrypted, StandardCharsets.UTF_8);
+            // Clean up whitespace (important for JSON parsing)
+            jsonPart = jsonPart.trim();
 
-            return ServiceRepository.ServiceData.fromJson(new JSONObject(json));
+            return ServiceRepository.ServiceData.fromJson(new JSONObject(jsonPart));
 
         } catch (Exception e) {
             Log.e(TAG, "Import failed", e);
+            Toast.makeText(context, "Corrupted File or Invalid Format", Toast.LENGTH_LONG).show();
             return null;
         }
-    }
-
-    // Helper to find byte pattern
-    private int indexOf(byte[] data, byte[] pattern) {
-        for (int i = 0; i < data.length - pattern.length + 1; i++) {
-            boolean found = true;
-            for (int j = 0; j < pattern.length; j++) {
-                if (data[i + j] != pattern[j]) {
-                    found = false;
-                    break;
-                }
-            }
-            if (found) return i;
-        }
-        return -1;
-    }
-
-    private byte[] xorProcess(byte[] input) {
-        byte[] output = new byte[input.length];
-        for (int i = 0; i < input.length; i++) {
-            output[i] = (byte) (input[i] ^ XOR_KEY[i % XOR_KEY.length]);
-        }
-        return output;
     }
 
     private byte[] readAllBytes(InputStream inputStream) throws IOException {
