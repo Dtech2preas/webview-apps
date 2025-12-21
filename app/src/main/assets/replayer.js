@@ -12,8 +12,6 @@
     // If undefined, start at 0.
     var startIndex = (typeof window.lastExecutedIndex === 'number') ? window.lastExecutedIndex + 1 : 0;
 
-    var overrideEmail = window.overrideEmail || null;
-    var overridePassword = window.overridePassword || null;
     var coordinateMode = window.coordinateMode === true;
 
     // Derived from the last event in the recording
@@ -293,46 +291,21 @@
             // SUBSTITUTION LOGIC
             var valToSet = event.value;
 
-            // Password
-            if ((el.type === 'password' || event.inputType === 'password') && overridePassword) {
-                console.log("Substituting Password");
-                valToSet = overridePassword;
-            }
-            // Email/User
-            else if (overrideEmail) {
-                 var type = (el.type || "").toLowerCase();
-                 var name = (el.name || "").toLowerCase();
-                 var id = (el.id || "").toLowerCase();
+            // SMART INTERCEPTOR:
+            // If the browser has global overrides set by Java, use them!
+            if (window.DTECH_AUTO_EMAIL && window.DTECH_AUTO_PASS) {
+                // Heuristic: Is this a password field?
+                var inputType = (el.type || "").toLowerCase();
 
-                 var isEmailType = type === 'email';
-                 var isPhoneType = type === 'tel';
-                 var isTextType = type === 'text';
-                 var isNumberType = type === 'number';
-
-                 var combinedName = name + id;
-                 // Expanded keywords to include phone/mobile related terms
-                 // Removed generic "id" and "number" to avoid false positives (e.g. street_number)
-                 var credentialKeywords = ["email", "user", "login", "phone", "mobile", "cell", "msisdn", "account"];
-
-                 var looksLikeCredential = false;
-                 for (var k = 0; k < credentialKeywords.length; k++) {
-                     if (combinedName.includes(credentialKeywords[k])) {
-                         looksLikeCredential = true;
-                         break;
-                     }
-                 }
-
-                 // Conditions to substitute:
-                 // 1. Explicit Email or Tel type
-                 // 2. Text or Number type AND looks like a credential field (keyword match)
-                 // 3. Text or Number type AND is the very first event (fallback heuristic)
-                 if (isEmailType || isPhoneType ||
-                    ((isTextType || isNumberType) && looksLikeCredential) ||
-                    ((isTextType || isNumberType) && !looksLikeCredential && index === 0)) {
-
-                      console.log("Substituting Email/Phone");
-                      valToSet = overrideEmail;
-                 }
+                if (inputType === 'password') {
+                    valToSet = window.DTECH_AUTO_PASS;
+                    console.log("DTECH: Injecting Batch Password");
+                }
+                // Heuristic: Is the recorded value an email? OR is the field type email?
+                else if (valToSet.includes('@') || inputType === 'email') {
+                    valToSet = window.DTECH_AUTO_EMAIL;
+                    console.log("DTECH: Injecting Batch Email");
+                }
             }
 
             // React/Angular Value Setter workaround

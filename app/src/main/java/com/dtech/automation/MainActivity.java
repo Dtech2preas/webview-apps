@@ -1436,9 +1436,8 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
 
     private void injectReplayer() {
         if (!isReplaying) return;
-        String js = readAssetFile("replayer.js");
-        verificationAttempts = 0;
 
+        // 1. Prepare Credentials
         String email = "";
         String pass = "";
         if (isBatchRunning && currentCredentialIndex < credentialList.size()) {
@@ -1447,19 +1446,26 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
             if (parts.length > 1) pass = parts[1].trim();
         }
 
-        JSONArray jsonArray = new JSONArray(currentSessionEvents);
-        JSONObject overrides = new JSONObject();
-        try {
-            overrides.put("email", email);
-            overrides.put("password", pass);
-        } catch (JSONException e) {}
+        // 2. Step 1: Inject Global Variables (Nuclear Method)
+        // Execute this BEFORE running the replayer script to ensure variables are available
+        String safeEmail = email.replace("'", "\\'");
+        String safePass = pass.replace("'", "\\'");
 
+        String injectionJs = "window.DTECH_AUTO_EMAIL = '" + safeEmail + "'; " +
+                             "window.DTECH_AUTO_PASS = '" + safePass + "';";
+
+        mWebView.evaluateJavascript(injectionJs, null);
+
+        // 3. Step 2: Inject Replayer Script
+        String js = readAssetFile("replayer.js");
+        verificationAttempts = 0;
+
+        JSONArray jsonArray = new JSONArray(currentSessionEvents);
+
+        // Note: Removed 'overrides' JSON logic. Script now uses global DTECH_ variables.
         String setup = "window.replayEvents = " + jsonArray.toString() + "; " +
                        "window.replayStartTime = " + replayStartTime + "; " +
                        "window.lastExecutedIndex = " + lastExecutedIndex + "; " +
-                       "var overrides = " + overrides.toString() + "; " +
-                       "window.overrideEmail = overrides.email; " +
-                       "window.overridePassword = overrides.password;" +
                        "window.coordinateMode = " + useCoordinateMode + ";";
 
         updateTerminal("Testing: " + email);
