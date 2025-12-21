@@ -139,12 +139,19 @@ public class DTechFileManager {
             // Check for header
             String prefix = new String(allBytes, 0, Math.min(allBytes.length, 50), StandardCharsets.UTF_8);
             if (prefix.startsWith(META_PREFIX)) {
-                // Find separator
-                byte[] sepBytes = (SEPARATOR + "\n").getBytes(StandardCharsets.UTF_8);
+                // Find separator (just the dash line, without forcing \n yet)
+                byte[] sepBytes = SEPARATOR.getBytes(StandardCharsets.UTF_8);
                 int splitIndex = indexOf(allBytes, sepBytes);
 
                 if (splitIndex != -1) {
                     int payloadStart = splitIndex + sepBytes.length;
+
+                    // Skip any newline characters (\r or \n) to find start of encrypted data
+                    while (payloadStart < allBytes.length &&
+                            (allBytes[payloadStart] == 10 || allBytes[payloadStart] == 13)) {
+                        payloadStart++;
+                    }
+
                     if (payloadStart < allBytes.length) {
                         payload = Arrays.copyOfRange(allBytes, payloadStart, allBytes.length);
                     }
