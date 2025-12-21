@@ -91,7 +91,7 @@ public class ServiceSelectionManager {
                             .setNegativeButton("No", null)
                             .show();
                      } else if (w == 1) { // Export .dtech
-                         exportServiceDtech(selected);
+                         showExportDialog(selected);
                      } else if (w == 2) { // Export JSON
                          exportServiceJson(selected);
                      } else if (w == 3) { // Edit Settings
@@ -125,8 +125,48 @@ public class ServiceSelectionManager {
         dialog.show();
     }
 
-    private void exportServiceDtech(ServiceRepository.ServiceData service) {
-        File file = fileManager.exportServiceToFile(service);
+    private void showExportDialog(ServiceRepository.ServiceData service) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle("Export Configuration");
+
+        LinearLayout layout = new LinearLayout(context);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 40, 50, 10);
+
+        final EditText etName = new EditText(context);
+        etName.setHint("Script Name (e.g. Crunchyroll Auto-Login)");
+        etName.setText(service.getName());
+        layout.addView(etName);
+
+        final EditText etUrl = new EditText(context);
+        etUrl.setHint("Target URL");
+        etUrl.setText(service.getLoginUrl());
+        layout.addView(etUrl);
+
+        final EditText etDesc = new EditText(context);
+        etDesc.setHint("Description (Brief info about what this does)");
+        etDesc.setMinLines(2);
+        layout.addView(etDesc);
+
+        builder.setView(layout);
+
+        builder.setPositiveButton("Export", (d, w) -> {
+            String name = etName.getText().toString().trim();
+            String url = etUrl.getText().toString().trim();
+            String desc = etDesc.getText().toString().trim();
+
+            if (name.isEmpty()) name = service.getName();
+            if (url.isEmpty()) url = service.getLoginUrl();
+            if (desc.isEmpty()) desc = "No description.";
+
+            exportServiceDtech(service, name, url, desc);
+        });
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
+    }
+
+    private void exportServiceDtech(ServiceRepository.ServiceData service, String name, String url, String desc) {
+        File file = fileManager.exportServiceWithMetadata(service, name, url, desc);
         if (file != null) {
             Uri contentUri = FileProvider.getUriForFile(context, "com.dtech.automation.fileprovider", file);
 

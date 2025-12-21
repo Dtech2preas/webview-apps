@@ -117,6 +117,8 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     private ServiceRepository.ServiceData currentService;
     private static final int REQUEST_CODE_IMPORT_JSON = 1001;
     private static final int REQUEST_CODE_IMPORT_CREDS = 1002;
+    private static final int REQUEST_CODE_UNLOCK = 1003;
+    private Uri pendingImportUri = null;
 
     // Credentials Dialog State
     private Dialog currentCredsDialog;
@@ -214,6 +216,18 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         // Check for .dtech file open
         if (Intent.ACTION_VIEW.equals(intent.getAction()) && intent.getData() != null) {
             Uri uri = intent.getData();
+
+            // Peek for Metadata First
+            Bundle meta = fileManager.peekMetadata(uri);
+            if (meta != null) {
+                pendingImportUri = uri;
+                Intent unlock = new Intent(this, UnlockActivity.class);
+                unlock.putExtras(meta);
+                startActivityForResult(unlock, REQUEST_CODE_UNLOCK);
+                return;
+            }
+
+            // Legacy Import
             ServiceRepository.ServiceData s = fileManager.importServiceFromUri(uri);
             if (s != null) {
                 s = new ServiceRepository.ServiceData(java.util.UUID.randomUUID().toString(), s.getName() + " (Imported)", s.getLoginUrl());
@@ -839,36 +853,41 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_CODE_IMPORT_JSON && resultCode == Activity.RESULT_OK) {
+
+        if (requestCode == REQUEST_CODE_UNLOCK && resultCode == Activity.RESULT_OK) {
+            if (pendingImportUri != null) {
+                // Proceed with import after unlock
+                ServiceRepository.ServiceData s = fileManager.importServiceFromUri(pendingImportUri);
+                if (s != null) {
+                    s = new ServiceRepository.ServiceData(java.util.UUID.randomUUID().toString(), s.getName() + " (Imported)", s.getLoginUrl());
+                    // Copy fields (Deep Copy Logic shared below, simplified here for brevity but assuming importServiceFromUri works correctly)
+                    // Actually, let's reuse the logic
+                    finalizeImport(s);
+                } else {
+                    Toast.makeText(this, "Import Failed", Toast.LENGTH_SHORT).show();
+                }
+                pendingImportUri = null;
+            }
+        }
+
+        else if (requestCode == REQUEST_CODE_IMPORT_JSON && resultCode == Activity.RESULT_OK) {
             if (data != null && data.getData() != null) {
                 Uri uri = data.getData();
+
+                Bundle meta = fileManager.peekMetadata(uri);
+                if (meta != null) {
+                    pendingImportUri = uri;
+                    Intent unlock = new Intent(this, UnlockActivity.class);
+                    unlock.putExtras(meta);
+                    startActivityForResult(unlock, REQUEST_CODE_UNLOCK);
+                    return;
+                }
+
                 // Strict .dtech import only. Fallback JSON support removed.
                 ServiceRepository.ServiceData s = fileManager.importServiceFromUri(uri);
 
                 if (s != null) {
-                    // Create a full copy with new ID and Name to preserve all automation data
-                    ServiceRepository.ServiceData imported = new ServiceRepository.ServiceData(
-                        java.util.UUID.randomUUID().toString(),
-                        s.getName() + " (Imported)",
-                        s.getLoginUrl()
-                    );
-                    // Critical: Copy steps and validation rules
-                    imported.setScriptJson(s.getScriptJson());
-                    imported.setSuccessUrl(s.getSuccessUrl());
-                    imported.setSuccessSelector(s.getSuccessSelector());
-                    imported.setSuccessKeywords(s.getSuccessKeywords());
-                    imported.setFailureKeywords(s.getFailureKeywords());
-                    imported.setExtractionPoints(s.getExtractionPoints());
-                    imported.setUserAgent(s.getUserAgent());
-                    imported.setUseOcrForSuccess(s.isUseOcrForSuccess());
-                    imported.setSuccessOcrText(s.getSuccessOcrText());
-                    imported.setSuccessOcrRect(s.getSuccessOcrX(), s.getSuccessOcrY(), s.getSuccessOcrW(), s.getSuccessOcrH());
-
-                    serviceRepo.addOrUpdateService(imported);
-                    Toast.makeText(this, "Service Imported Successfully!", Toast.LENGTH_SHORT).show();
-
-                    // Immediately load the imported service so it's ready to run
-                    onServiceSelected(imported);
+                   finalizeImport(s);
                 } else {
                     Toast.makeText(this, "Import Failed: Invalid File", Toast.LENGTH_SHORT).show();
                 }
@@ -897,6 +916,32 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                  }
              }
         }
+    }
+
+    private void finalizeImport(ServiceRepository.ServiceData s) {
+        // Create a full copy with new ID and Name to preserve all automation data
+        ServiceRepository.ServiceData imported = new ServiceRepository.ServiceData(
+            java.util.UUID.randomUUID().toString(),
+            s.getName() + " (Imported)",
+            s.getLoginUrl()
+        );
+        // Critical: Copy steps and validation rules
+        imported.setScriptJson(s.getScriptJson());
+        imported.setSuccessUrl(s.getSuccessUrl());
+        imported.setSuccessSelector(s.getSuccessSelector());
+        imported.setSuccessKeywords(s.getSuccessKeywords());
+        imported.setFailureKeywords(s.getFailureKeywords());
+        imported.setExtractionPoints(s.getExtractionPoints());
+        imported.setUserAgent(s.getUserAgent());
+        imported.setUseOcrForSuccess(s.isUseOcrForSuccess());
+        imported.setSuccessOcrText(s.getSuccessOcrText());
+        imported.setSuccessOcrRect(s.getSuccessOcrX(), s.getSuccessOcrY(), s.getSuccessOcrW(), s.getSuccessOcrH());
+
+        serviceRepo.addOrUpdateService(imported);
+        Toast.makeText(this, "Service Imported Successfully!", Toast.LENGTH_SHORT).show();
+
+        // Immediately load the imported service so it's ready to run
+        onServiceSelected(imported);
     }
 
     private void setupWebView() {

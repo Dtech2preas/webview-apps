@@ -77,6 +77,8 @@
         <activity android:name=".InfoActivity" />
         <activity android:name=".AdSystemActivity"
                   android:theme="@android:style/Theme.NoTitleBar" />
+        <activity android:name=".UnlockActivity"
+                  android:theme="@style/AppTheme"/>
 
         <service
             android:name=".AutomationService"
