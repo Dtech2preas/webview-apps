@@ -1446,23 +1446,48 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
             if (parts.length > 1) pass = parts[1].trim();
         }
 
-        // 2. Step 1: Inject Global Variables (Nuclear Method)
-        // Execute this BEFORE running the replayer script to ensure variables are available
-        String safeEmail = email.replace("'", "\\'");
-        String safePass = pass.replace("'", "\\'");
+        // 2. Modify JSON Script directly
+        JSONArray jsonArray = new JSONArray();
+        for (JSONObject obj : currentSessionEvents) {
+            try {
+                // Deep Copy
+                JSONObject copy = new JSONObject(obj.toString());
+                String type = copy.optString("type");
 
-        String injectionJs = "window.DTECH_AUTO_EMAIL = '" + safeEmail + "'; " +
-                             "window.DTECH_AUTO_PASS = '" + safePass + "';";
+                if ("input".equals(type)) {
+                    String inputType = copy.optString("inputType", "").toLowerCase();
+                    String name = copy.optString("name", "").toLowerCase();
+                    String id = copy.optString("id", "").toLowerCase();
+                    String val = copy.optString("value", "");
 
-        mWebView.evaluateJavascript(injectionJs, null);
+                    // Password Heuristic
+                    if (inputType.equals("password") || name.contains("password") || id.contains("password") ||
+                            name.contains("pass") || id.contains("pass") || name.contains("pwd") || id.contains("pwd")) {
+                        if (!pass.isEmpty()) {
+                            copy.put("value", pass);
+                        }
+                    }
+                    // Email/User Heuristic
+                    else if (inputType.equals("email") || inputType.equals("tel") ||
+                             name.contains("email") || id.contains("email") ||
+                             name.contains("user") || id.contains("user") ||
+                             name.contains("login") || id.contains("login") ||
+                             val.contains("@")) {
+                         if (!email.isEmpty()) {
+                             copy.put("value", email);
+                         }
+                    }
+                }
+                jsonArray.put(copy);
+            } catch (JSONException e) {
+                // Ignore bad objects
+            }
+        }
 
-        // 3. Step 2: Inject Replayer Script
+        // 3. Inject Replayer Script
         String js = readAssetFile("replayer.js");
         verificationAttempts = 0;
 
-        JSONArray jsonArray = new JSONArray(currentSessionEvents);
-
-        // Note: Removed 'overrides' JSON logic. Script now uses global DTECH_ variables.
         String setup = "window.replayEvents = " + jsonArray.toString() + "; " +
                        "window.replayStartTime = " + replayStartTime + "; " +
                        "window.lastExecutedIndex = " + lastExecutedIndex + "; " +
