@@ -222,7 +222,7 @@ public class ResultsHelper {
             sb.append("\n");
         }
 
-        sb.append("[ Powered by D-TECH ]");
+        sb.append("[ Powered by D-TECH https://t.me/DTECHX24 ]");
         return sb.toString();
     }
 }

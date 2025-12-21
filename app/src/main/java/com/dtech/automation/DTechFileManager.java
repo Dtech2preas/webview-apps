@@ -33,9 +33,9 @@ public class DTechFileManager {
     }
 
     /**
-     * Exports a service to a .dtech file with metadata header.
+     * Generates the binary content for a .dtech file with metadata header.
      */
-    public File exportServiceWithMetadata(ServiceRepository.ServiceData service, String metaName, String metaUrl, String metaDesc) {
+    public byte[] generateDTechData(ServiceRepository.ServiceData service, String metaName, String metaUrl, String metaDesc) {
         try {
             String json = service.toJson().toString();
             byte[] data = json.getBytes(StandardCharsets.UTF_8);
@@ -51,27 +51,38 @@ public class DTechFileManager {
 
             byte[] headerBytes = header.toString().getBytes(StandardCharsets.UTF_8);
 
-            // Create file
-            String filename = service.getName().replaceAll("[^a-zA-Z0-9]", "_") + EXTENSION;
-            File file = new File(context.getExternalCacheDir(), filename);
+            // Combine
+            byte[] combined = new byte[headerBytes.length + encrypted.length];
+            System.arraycopy(headerBytes, 0, combined, 0, headerBytes.length);
+            System.arraycopy(encrypted, 0, combined, headerBytes.length, encrypted.length);
 
-            try (FileOutputStream fos = new FileOutputStream(file)) {
-                fos.write(headerBytes);
-                fos.write(encrypted);
-            }
-            return file;
+            return combined;
 
         } catch (Exception e) {
-            Log.e(TAG, "Export failed", e);
+            Log.e(TAG, "Data generation failed", e);
             return null;
         }
     }
 
-    /**
-     * Legacy export (wraps with defaults if called directly, but we will mostly use the new one)
-     */
-    public File exportServiceToFile(ServiceRepository.ServiceData service) {
-        return exportServiceWithMetadata(service, service.getName(), service.getLoginUrl(), "Exported Service");
+    public void saveDTechToDownloads(String fileName, byte[] content) {
+        try {
+            android.content.ContentValues values = new android.content.ContentValues();
+            values.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+            values.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream");
+            values.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/DTech_Configs");
+
+            android.net.Uri uri = context.getContentResolver().insert(android.provider.MediaStore.Files.getContentUri("external"), values);
+
+            if (uri != null) {
+                try (java.io.OutputStream os = context.getContentResolver().openOutputStream(uri)) {
+                    os.write(content);
+                }
+                android.widget.Toast.makeText(context, "Saved to Downloads/DTech_Configs", android.widget.Toast.LENGTH_LONG).show();
+            }
+        } catch (java.io.IOException e) {
+            android.util.Log.e("DTECH_EXPORT", "Error", e);
+            android.widget.Toast.makeText(context, "Export Failed: " + e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
+        }
     }
 
     /**

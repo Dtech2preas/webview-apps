@@ -166,17 +166,10 @@ public class ServiceSelectionManager {
     }
 
     private void exportServiceDtech(ServiceRepository.ServiceData service, String name, String url, String desc) {
-        File file = fileManager.exportServiceWithMetadata(service, name, url, desc);
-        if (file != null) {
-            Uri contentUri = FileProvider.getUriForFile(context, "com.dtech.automation.fileprovider", file);
-
-            android.content.Intent shareIntent = new android.content.Intent();
-            shareIntent.setAction(android.content.Intent.ACTION_SEND);
-            shareIntent.putExtra(android.content.Intent.EXTRA_STREAM, contentUri);
-            shareIntent.setType("application/octet-stream");
-            shareIntent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
-
-            context.startActivity(android.content.Intent.createChooser(shareIntent, "Share .dtech File"));
+        byte[] data = fileManager.generateDTechData(service, name, url, desc);
+        if (data != null) {
+            String filename = service.getName().replaceAll("[^a-zA-Z0-9]", "_") + DTechFileManager.EXTENSION;
+            fileManager.saveDTechToDownloads(filename, data);
         } else {
             Toast.makeText(context, "Export Failed", Toast.LENGTH_SHORT).show();
         }

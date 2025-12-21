@@ -1670,7 +1670,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
 
         String serviceName = currentService != null ? currentService.getName() : "Unknown";
         String extra = detail != null ? detail : "";
-        String msg = status + "|" + serviceName + "|" + cred + extra + " (powered by DTECH)";
+        String msg = status + "|" + serviceName + "|" + cred + extra + " (powered by DTECH https://t.me/DTECHX24)";
 
         Log.i(TAG, "Batch Result: " + msg);
         updateTerminal(status + ": " + cred.split(":")[0]);
@@ -1679,6 +1679,11 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
 
         if (index == 0 && !useCoordinateMode) {
+             if (currentService.getName().toLowerCase().contains("(imported)")) {
+                 // Auto-verify: Immediately trigger success (next)
+                 moveToNext(index);
+                 return;
+             }
              runOnUiThread(() -> {
                  new AlertDialog.Builder(this)
                      .setTitle("Did the automation work?")
