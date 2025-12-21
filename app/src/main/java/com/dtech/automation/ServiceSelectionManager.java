@@ -164,9 +164,16 @@ public class ServiceSelectionManager {
     }
 
     private void exportServiceDtech(ServiceRepository.ServiceData service, String name, String url, String desc) {
-        byte[] data = fileManager.generateDTechData(service, name, url, desc);
+        // Fetch full data to ensure scriptJson is present (fix Lazy Load)
+        ServiceRepository.ServiceData fullService = repo.getServiceById(service.getId());
+        if (fullService == null) {
+            Toast.makeText(context, "Export Failed: Service not found", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        byte[] data = fileManager.generateDTechData(fullService, name, url, desc);
         if (data != null) {
-            String filename = service.getName().replaceAll("[^a-zA-Z0-9]", "_") + DTechFileManager.EXTENSION;
+            String filename = fullService.getName().replaceAll("[^a-zA-Z0-9]", "_") + DTechFileManager.EXTENSION;
             fileManager.saveDTechToDownloads(filename, data);
         } else {
             Toast.makeText(context, "Export Failed", Toast.LENGTH_SHORT).show();
