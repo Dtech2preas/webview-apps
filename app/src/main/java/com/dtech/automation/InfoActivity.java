@@ -33,11 +33,10 @@ public class InfoActivity extends Activity {
                 "   - Go to Settings > System > Developer Options.<br/>" +
                 "   - Find and Toggle 'Stay Awake' (Screen will never sleep while charging).<br/><br/>" +
                 "<b>HOW TO USE:</b><br/><br/>" +
-                "1. Open App and go to <b>Settings</b>.<br/>" +
+                "1. Open App and tap the CREDENTIALS button.<br/>" +
                 "2. Input your <b>email:password</b> pairs (one per line).<br/>" +
-                "3. If your list is not in the correct format, you can upload your text file to our extractor website:<br/>" +
-                "<a href='http://www.preasx24.co.za/ext.html'>www.preasx24.co.za/ext.html</a><br/>" +
-                "(It extracts email:pass pairs for you to copy and paste back here).<br/>" +
+                "3. If your list is not in the correct format, use our extractor tool.<br/>" +
+                "<a href='http://www.preasx24.co.za/ext.html'>www.preasx24.co.za/ext.html</a><br/><br/>" +
                 "4. <b>Save</b> your settings.<br/>" +
                 "5. Press <b>PLAY</b> on the main screen.<br/><br/>" +
                 "The app will test all accounts one by one and log results.<br/><br/>" +
