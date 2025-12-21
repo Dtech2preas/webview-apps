@@ -75,7 +75,7 @@ public class ServiceSelectionManager {
         // Long click for Options
         listView.setOnItemLongClickListener((parent, v, position, id) -> {
             ServiceRepository.ServiceData selected = services.get(position);
-            String[] options = {"Delete", "Export .dtech", "Export JSON (Legacy)", "Edit Settings", "Cancel"};
+            String[] options = {"Delete", "Export .dtech", "Edit Settings", "Cancel"};
             new AlertDialog.Builder(context)
                 .setTitle(selected.getName())
                 .setItems(options, (d, w) -> {
@@ -92,9 +92,7 @@ public class ServiceSelectionManager {
                             .show();
                      } else if (w == 1) { // Export .dtech
                          showExportDialog(selected);
-                     } else if (w == 2) { // Export JSON
-                         exportServiceJson(selected);
-                     } else if (w == 3) { // Edit Settings
+                     } else if (w == 2) { // Edit Settings
                          showEditServiceDialog(selected);
                          dialog.dismiss();
                      }
@@ -172,16 +170,6 @@ public class ServiceSelectionManager {
             fileManager.saveDTechToDownloads(filename, data);
         } else {
             Toast.makeText(context, "Export Failed", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void exportServiceJson(ServiceRepository.ServiceData service) {
-        String json = repo.exportService(service.getId());
-        if (json != null) {
-            android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_SEND);
-            i.setType("text/plain");
-            i.putExtra(android.content.Intent.EXTRA_TEXT, json);
-            context.startActivity(android.content.Intent.createChooser(i, "Export JSON Config"));
         }
     }
 
