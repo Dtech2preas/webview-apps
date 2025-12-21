@@ -342,7 +342,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         btnPlaySingle.setOnClickListener(v -> { performHapticFeedback(); startBatchReplay(); });
         btnExecuteBatch.setOnClickListener(v -> { performHapticFeedback(); startBatchReplay(); });
         btnSelectService.setOnClickListener(v -> { performHapticFeedback(); showServiceSelection(); });
-        btnSessionResults.setOnClickListener(v -> { performHapticFeedback(); showBatchResults(); });
+        btnSessionResults.setOnClickListener(v -> { performHapticFeedback(); showOverlayResultsDialog(); });
         btnCredentials.setOnClickListener(v -> { performHapticFeedback(); showCredentialsDialog(); });
         btnStopBatch.setOnClickListener(v -> { performHapticFeedback(); stopBatch(); });
 
@@ -1667,6 +1667,118 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         } catch (Exception e) {
             Log.e(TAG, "Failed to open results", e);
             Toast.makeText(this, "Error opening results", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void showOverlayResultsDialog() {
+        if (currentService == null) {
+            Toast.makeText(this, "Select a service first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.setContentView(R.layout.dialog_service_results);
+        if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+
+        TextView tvName = dialog.findViewById(R.id.tv_dialog_service_name);
+        TextView tvSuccess = dialog.findViewById(R.id.tv_dialog_success_count);
+        TextView tvFail = dialog.findViewById(R.id.tv_dialog_fail_count);
+        RecyclerView recycler = dialog.findViewById(R.id.recycler_dialog_logs);
+        Button btnShare = dialog.findViewById(R.id.btn_dialog_share_success);
+        Button btnClear = dialog.findViewById(R.id.btn_dialog_clear_failed);
+        Button btnClearAllService = dialog.findViewById(R.id.btn_dialog_clear_all_service);
+        Button btnClose = dialog.findViewById(R.id.btn_dialog_close);
+
+        tvName.setText(currentService.getName());
+
+        // Load Stats Async
+        new Thread(() -> {
+            ResultsHelper.ServiceStats stats = ResultsHelper.getServiceStats(this, currentService.getName());
+
+            runOnUiThread(() -> {
+                if (dialog.isShowing()) {
+                    tvSuccess.setText("Success: " + stats.successCount);
+                    tvFail.setText("Fail: " + stats.failureCount);
+
+                    // Setup List
+                    recycler.setLayoutManager(new LinearLayoutManager(this));
+                    recycler.setAdapter(new RecyclerView.Adapter<ConsoleLogAdapter.LogViewHolder>() {
+                        @NonNull
+                        @Override
+                        public ConsoleLogAdapter.LogViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+                            TextView tv = new TextView(parent.getContext());
+                            tv.setTextSize(12);
+                            tv.setPadding(8, 4, 8, 4);
+                            tv.setTypeface(android.graphics.Typeface.MONOSPACE);
+                            return new ConsoleLogAdapter.LogViewHolder(tv);
+                        }
+
+                        @Override
+                        public void onBindViewHolder(@NonNull ConsoleLogAdapter.LogViewHolder holder, int position) {
+                            String line = stats.logs.get(position);
+                            holder.tv.setText(line);
+                            if (line.contains("SUCCESS")) {
+                                holder.tv.setTextColor(Color.parseColor("#69F0AE"));
+                            } else if (line.contains("FAILURE")) {
+                                holder.tv.setTextColor(Color.parseColor("#FF5252"));
+                            } else {
+                                holder.tv.setTextColor(Color.WHITE);
+                            }
+                        }
+
+                        @Override
+                        public int getItemCount() {
+                            return stats.logs.size();
+                        }
+                    });
+
+                    btnShare.setOnClickListener(v -> {
+                        String content = ResultsHelper.getFormattedExport(java.util.Collections.singletonList(stats), true, null);
+                        shareTextFile(content, "results_" + currentService.getName() + ".txt");
+                    });
+                }
+            });
+        }).start();
+
+        btnClear.setOnClickListener(v -> {
+            ResultsHelper.clearServiceFailures(this, currentService.getName());
+            Toast.makeText(this, "Failures Cleared", Toast.LENGTH_SHORT).show();
+            dialog.dismiss();
+        });
+
+        btnClearAllService.setOnClickListener(v -> {
+            new AlertDialog.Builder(this)
+                .setTitle("Clear All for " + currentService.getName() + "?")
+                .setMessage("This will remove all history for this service.")
+                .setPositiveButton("Clear", (d, w) -> {
+                    ResultsHelper.clearServiceResults(this, currentService.getName());
+                    Toast.makeText(this, "Service History Cleared", Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+        });
+
+        btnClose.setOnClickListener(v -> dialog.dismiss());
+        dialog.show();
+    }
+
+    private void shareTextFile(String content, String fileName) {
+        try {
+            File file = new File(getCacheDir(), fileName);
+            FileOutputStream fos = new FileOutputStream(file);
+            fos.write(content.getBytes());
+            fos.close();
+
+            Uri uri = androidx.core.content.FileProvider.getUriForFile(this, getPackageName() + ".provider", file);
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("text/plain");
+            intent.putExtra(Intent.EXTRA_STREAM, uri);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(intent, "Share Results"));
+        } catch (Exception e) {
+            Toast.makeText(this, "Export Failed", Toast.LENGTH_SHORT).show();
+            e.printStackTrace();
         }
     }
 
