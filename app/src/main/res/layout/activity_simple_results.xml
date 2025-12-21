@@ -3,34 +3,111 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/dtech_background_black"
+    android:background="#000000"
     android:padding="16dp">
 
-    <TextView
+    <!-- Global Header -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="SESSION RESULTS"
-        android:textColor="@color/dtech_cyan"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:gravity="center"
-        android:fontFamily="sans-serif-black"
-        android:layout_marginBottom="16dp"/>
+        android:orientation="vertical"
+        android:background="@drawable/rounded_background"
+        android:padding="16dp"
+        android:layout_marginBottom="16dp">
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler_simple_results"
+        <TextView
+            android:id="@+id/tv_global_rate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Global Success Rate: 0%"
+            android:textColor="#00E5FF"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="8dp" />
+
+        <!-- Native Bar Graph -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="20dp"
+            android:orientation="horizontal"
+            android:background="#303030">
+
+            <View
+                android:id="@+id/view_global_success_bar"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="#00C853" />
+
+            <View
+                android:id="@+id/view_global_fail_bar"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="#D50000" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingTop="4dp">
+            <TextView
+                android:id="@+id/tv_global_success_count"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="S: 0"
+                android:textColor="#00C853"
+                android:gravity="start"/>
+            <TextView
+                android:id="@+id/tv_global_fail_count"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="F: 0"
+                android:textColor="#D50000"
+                android:gravity="end"/>
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Expandable List -->
+    <ExpandableListView
+        android:id="@+id/expandable_results"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"/>
+        android:layout_weight="1"
+        android:divider="@android:color/transparent"
+        android:childDivider="@android:color/transparent"
+        android:groupIndicator="@null" />
 
-    <Button
-        android:id="@+id/btn_clear_history"
+    <!-- Global Actions Footer -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="CLEAR HISTORY"
-        android:textColor="@color/black"
-        android:backgroundTint="@color/dtech_red"
-        android:layout_marginTop="16dp"
-        android:textStyle="bold"/>
+        android:orientation="horizontal"
+        android:paddingTop="16dp">
+
+        <Button
+            android:id="@+id/btn_share_all_success"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="SHARE ALL SUCCESS"
+            android:backgroundTint="#00E5FF"
+            android:textColor="#000000"
+            android:textStyle="bold"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/btn_clear_all_global"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="CLEAR ALL"
+            android:backgroundTint="#D50000"
+            android:textColor="#FFFFFF" />
+    </LinearLayout>
 
 </LinearLayout>
