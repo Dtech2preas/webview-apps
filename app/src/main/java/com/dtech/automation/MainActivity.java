@@ -828,6 +828,8 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
             for(int i=0; i<arr.length(); i++) currentSessionEvents.add(arr.getJSONObject(i));
         } catch (JSONException e) {
             currentSessionEvents.clear();
+            Toast.makeText(this, "ERROR: Corrupted Script Data", Toast.LENGTH_LONG).show();
+            Log.e(TAG, "Corrupted JSON: " + service.getScriptJson());
         }
 
         if (service.getUserAgent() != null && !service.getUserAgent().isEmpty()) {
@@ -923,6 +925,14 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     }
 
     private void finalizeImport(ServiceRepository.ServiceData s) {
+        // Validation before import
+        try {
+            new JSONArray(s.getScriptJson());
+        } catch (JSONException e) {
+            Toast.makeText(this, "ERROR: Imported Script is Corrupted", Toast.LENGTH_LONG).show();
+            return;
+        }
+
         // Create a full copy with new ID and Name to preserve all automation data
         String newName = s.getName();
         if (!newName.toLowerCase().endsWith("(imported)")) {
