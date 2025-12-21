@@ -1436,8 +1436,9 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
 
     private void injectReplayer() {
         if (!isReplaying) return;
+        String js = readAssetFile("replayer.js");
+        verificationAttempts = 0;
 
-        // 1. Prepare Credentials
         String email = "";
         String pass = "";
         if (isBatchRunning && currentCredentialIndex < credentialList.size()) {
@@ -1446,51 +1447,19 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
             if (parts.length > 1) pass = parts[1].trim();
         }
 
-        // 2. Modify JSON Script directly
-        JSONArray jsonArray = new JSONArray();
-        for (JSONObject obj : currentSessionEvents) {
-            try {
-                // Deep Copy
-                JSONObject copy = new JSONObject(obj.toString());
-                String type = copy.optString("type");
-
-                if ("input".equals(type)) {
-                    String inputType = copy.optString("inputType", "").toLowerCase();
-                    String name = copy.optString("name", "").toLowerCase();
-                    String id = copy.optString("id", "").toLowerCase();
-                    String val = copy.optString("value", "");
-
-                    // Password Heuristic
-                    if (inputType.equals("password") || name.contains("password") || id.contains("password") ||
-                            name.contains("pass") || id.contains("pass") || name.contains("pwd") || id.contains("pwd")) {
-                        if (!pass.isEmpty()) {
-                            copy.put("value", pass);
-                        }
-                    }
-                    // Email/User Heuristic
-                    else if (inputType.equals("email") || inputType.equals("tel") ||
-                             name.contains("email") || id.contains("email") ||
-                             name.contains("user") || id.contains("user") ||
-                             name.contains("login") || id.contains("login") ||
-                             val.contains("@")) {
-                         if (!email.isEmpty()) {
-                             copy.put("value", email);
-                         }
-                    }
-                }
-                jsonArray.put(copy);
-            } catch (JSONException e) {
-                // Ignore bad objects
-            }
-        }
-
-        // 3. Inject Replayer Script
-        String js = readAssetFile("replayer.js");
-        verificationAttempts = 0;
+        JSONArray jsonArray = new JSONArray(currentSessionEvents);
+        JSONObject overrides = new JSONObject();
+        try {
+            overrides.put("email", email);
+            overrides.put("password", pass);
+        } catch (JSONException e) {}
 
         String setup = "window.replayEvents = " + jsonArray.toString() + "; " +
                        "window.replayStartTime = " + replayStartTime + "; " +
                        "window.lastExecutedIndex = " + lastExecutedIndex + "; " +
+                       "var overrides = " + overrides.toString() + "; " +
+                       "window.overrideEmail = overrides.email; " +
+                       "window.overridePassword = overrides.password;" +
                        "window.coordinateMode = " + useCoordinateMode + ";";
 
         updateTerminal("Testing: " + email);

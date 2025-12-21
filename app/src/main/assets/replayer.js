@@ -12,6 +12,8 @@
     // If undefined, start at 0.
     var startIndex = (typeof window.lastExecutedIndex === 'number') ? window.lastExecutedIndex + 1 : 0;
 
+    var overrideEmail = window.overrideEmail || null;
+    var overridePassword = window.overridePassword || null;
     var coordinateMode = window.coordinateMode === true;
 
     // Derived from the last event in the recording
@@ -280,13 +282,58 @@
             el.dispatchEvent(mouseUp);
             el.dispatchEvent(clickEvent);
 
-            // Native fallback
+            // Native fallback (only if not coordinate mode, or maybe always?)
+            // If coordinate mode, el might be body or something wrong, so be careful with .click()
+            // But if we found an elementFromPoint, .click() is good.
             if (!coordinateMode || (forcedCoords && el !== document.body)) {
                  setTimeout(function(){ try { el.click(); } catch(e){} }, 10);
             }
 
         } else if (event.type === 'input') {
+            // SUBSTITUTION LOGIC
             var valToSet = event.value;
+
+            // Password
+            if ((el.type === 'password' || event.inputType === 'password') && overridePassword) {
+                console.log("Substituting Password");
+                valToSet = overridePassword;
+            }
+            // Email/User
+            else if (overrideEmail) {
+                 var type = (el.type || "").toLowerCase();
+                 var name = (el.name || "").toLowerCase();
+                 var id = (el.id || "").toLowerCase();
+
+                 var isEmailType = type === 'email';
+                 var isPhoneType = type === 'tel';
+                 var isTextType = type === 'text';
+                 var isNumberType = type === 'number';
+
+                 var combinedName = name + id;
+                 // Expanded keywords to include phone/mobile related terms
+                 // Removed generic "id" and "number" to avoid false positives (e.g. street_number)
+                 var credentialKeywords = ["email", "user", "login", "phone", "mobile", "cell", "msisdn", "account"];
+
+                 var looksLikeCredential = false;
+                 for (var k = 0; k < credentialKeywords.length; k++) {
+                     if (combinedName.includes(credentialKeywords[k])) {
+                         looksLikeCredential = true;
+                         break;
+                     }
+                 }
+
+                 // Conditions to substitute:
+                 // 1. Explicit Email or Tel type
+                 // 2. Text or Number type AND looks like a credential field (keyword match)
+                 // 3. Text or Number type AND is the very first event (fallback heuristic)
+                 if (isEmailType || isPhoneType ||
+                    ((isTextType || isNumberType) && looksLikeCredential) ||
+                    ((isTextType || isNumberType) && !looksLikeCredential && index === 0)) {
+
+                      console.log("Substituting Email/Phone");
+                      valToSet = overrideEmail;
+                 }
+            }
 
             // React/Angular Value Setter workaround
             var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
@@ -298,6 +345,7 @@
 
             el.dispatchEvent(new Event('input', { bubbles: true }));
             el.dispatchEvent(new Event('change', { bubbles: true }));
+            // Dispatch key events to simulate typing? (Simplified for now)
             el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
             el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
 
