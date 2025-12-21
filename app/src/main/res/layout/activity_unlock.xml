@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000000"
@@ -7,7 +8,6 @@
     android:padding="24dp"
     android:gravity="center">
 
-    <!-- Terminal Output -->
     <TextView
         android:id="@+id/tv_terminal_log"
         android:layout_width="match_parent"
@@ -21,7 +21,6 @@
         android:gravity="bottom"
         android:paddingBottom="16dp"/>
 
-    <!-- Progress Bar -->
     <ProgressBar
         android:id="@+id/progress_unlock"
         style="?android:attr/progressBarStyleHorizontal"
@@ -32,7 +31,6 @@
         android:progressTint="#00E5FF"
         android:layout_marginBottom="32dp"/>
 
-    <!-- Locked Icon/Status -->
     <ImageView
         android:id="@+id/iv_lock_icon"
         android:layout_width="64dp"
@@ -53,7 +51,6 @@
         android:visibility="invisible"
         android:layout_marginBottom="32dp"/>
 
-    <!-- Action Button -->
     <Button
         android:id="@+id/btn_unlock_action"
         android:layout_width="match_parent"
