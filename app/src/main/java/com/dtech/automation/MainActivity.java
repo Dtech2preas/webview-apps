@@ -1768,7 +1768,11 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
 
     private void shareTextFile(String content, String fileName) {
         try {
-            File file = new File(getCacheDir(), fileName);
+            File shareDir = new File(getCacheDir(), "shared_exports");
+            if (!shareDir.exists()) {
+                shareDir.mkdirs();
+            }
+            File file = new File(shareDir, fileName);
             FileOutputStream fos = new FileOutputStream(file);
             fos.write(content.getBytes());
             fos.close();
@@ -1780,7 +1784,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(Intent.createChooser(intent, "Share Results"));
         } catch (Exception e) {
-            Toast.makeText(this, "Export Failed", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Export Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             e.printStackTrace();
         }
     }
