@@ -230,11 +230,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
             // Legacy Import
             ServiceRepository.ServiceData s = fileManager.importServiceFromUri(uri);
             if (s != null) {
-                String newName = s.getName();
-                if (!newName.toLowerCase().endsWith("(imported)")) {
-                    newName += " (Imported)";
-                }
-                s = new ServiceRepository.ServiceData(java.util.UUID.randomUUID().toString(), newName, s.getLoginUrl());
+                s = new ServiceRepository.ServiceData(java.util.UUID.randomUUID().toString(), s.getName() + " (Imported)", s.getLoginUrl());
                 serviceRepo.addOrUpdateService(s);
                 Toast.makeText(this, "Service Imported: " + s.getName(), Toast.LENGTH_LONG).show();
                 onServiceSelected(s);
@@ -828,8 +824,6 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
             for(int i=0; i<arr.length(); i++) currentSessionEvents.add(arr.getJSONObject(i));
         } catch (JSONException e) {
             currentSessionEvents.clear();
-            Toast.makeText(this, "ERROR: Corrupted Script Data", Toast.LENGTH_LONG).show();
-            Log.e(TAG, "Corrupted JSON: " + service.getScriptJson());
         }
 
         if (service.getUserAgent() != null && !service.getUserAgent().isEmpty()) {
@@ -925,22 +919,10 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     }
 
     private void finalizeImport(ServiceRepository.ServiceData s) {
-        // Validation before import
-        try {
-            new JSONArray(s.getScriptJson());
-        } catch (JSONException e) {
-            Toast.makeText(this, "ERROR: Imported Script is Corrupted", Toast.LENGTH_LONG).show();
-            return;
-        }
-
         // Create a full copy with new ID and Name to preserve all automation data
-        String newName = s.getName();
-        if (!newName.toLowerCase().endsWith("(imported)")) {
-            newName += " (Imported)";
-        }
         ServiceRepository.ServiceData imported = new ServiceRepository.ServiceData(
             java.util.UUID.randomUUID().toString(),
-            newName,
+            s.getName() + " (Imported)",
             s.getLoginUrl()
         );
         // Critical: Copy steps and validation rules
@@ -1296,27 +1278,6 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         if (currentService == null) {
              Toast.makeText(this, "Select a service first", Toast.LENGTH_SHORT).show();
              return;
-        }
-
-        try {
-            JSONArray steps = new JSONArray(currentService.getScriptJson());
-            if (steps.length() > 0) {
-                // Find the first INPUT step
-                for (int i=0; i<steps.length(); i++) {
-                    JSONObject step = steps.getJSONObject(i);
-                    if ("input".equals(step.optString("type"))) {
-                        String sel = step.optString("selector", "MISSING");
-                        String val = step.optString("value", "MISSING");
-
-                        // SHOW THIS TO THE USER
-                        Toast.makeText(this, "DEBUG: Step " + i + " Selector: " + sel, Toast.LENGTH_LONG).show();
-                        Log.e("DTECH_DEBUG", "Imported Step " + i + ": " + step.toString());
-                        break;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Toast.makeText(this, "DEBUG: Script JSON Corrupted", Toast.LENGTH_LONG).show();
         }
 
         boolean isImported = currentService.getName().toLowerCase().contains("(imported)");
