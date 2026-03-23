@@ -928,6 +928,8 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         // Critical: Copy steps and validation rules
         imported.setScriptJson(s.getScriptJson());
         imported.setSuccessUrl(s.getSuccessUrl());
+        imported.setForceRedirectUrl(s.getForceRedirectUrl());
+        imported.setSuccessValidationUrl(s.getSuccessValidationUrl());
         imported.setSuccessSelector(s.getSuccessSelector());
         imported.setSuccessKeywords(s.getSuccessKeywords());
         imported.setFailureKeywords(s.getFailureKeywords());
@@ -1160,13 +1162,85 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
             JSONArray arr = new JSONArray(currentSessionEvents);
             currentService.setScriptJson(arr.toString());
 
-            Toast.makeText(this, "Scanning page text...", Toast.LENGTH_SHORT).show();
-            performFullPageOcrForSelection();
+            // Present the two methods
+            new AlertDialog.Builder(this)
+                .setTitle("Select Success Verification Method")
+                .setMessage("Method A (URL-based): Verify success if the URL matches a specific link, then optionally force redirect to a Plan URL.\n\nMethod B (Text/Click-based): Verify success by finding specific text on the screen.")
+                .setPositiveButton("Method A (URL)", (d, w) -> {
+                    showMethodAUrlDialog();
+                })
+                .setNegativeButton("Method B (Text)", (d, w) -> {
+                    Toast.makeText(this, "Scanning page text...", Toast.LENGTH_SHORT).show();
+                    performFullPageOcrForSelection();
+                })
+                .setCancelable(false)
+                .show();
 
         } else if (recordingMode == RECORD_MODE_FAILURE) {
             Toast.makeText(this, "Scanning page text...", Toast.LENGTH_SHORT).show();
             performFullPageOcrForSelection();
         }
+    }
+
+    private void showMethodAUrlDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+             .setTitle("Method A: URL Setup")
+             .setMessage("Enter the URL that indicates a successful login. Optionally, enter a Plan URL to instantly redirect to after success.")
+             .setCancelable(false);
+
+        android.widget.LinearLayout layout = new android.widget.LinearLayout(this);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        layout.setPadding(40, 20, 40, 20);
+
+        final android.widget.EditText inputSuccessUrl = new android.widget.EditText(this);
+        inputSuccessUrl.setHint("Success Validation URL (e.g., /dashboard)");
+        inputSuccessUrl.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        inputSuccessUrl.setText(mWebView.getUrl()); // pre-fill with current
+
+        final android.widget.EditText inputPlanUrl = new android.widget.EditText(this);
+        inputPlanUrl.setHint("Optional Plan URL (Force Redirect)");
+        inputPlanUrl.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
+
+        layout.addView(inputSuccessUrl);
+        layout.addView(inputPlanUrl);
+        builder.setView(layout);
+
+        builder.setPositiveButton("Save & Scan Plan", (d, w) -> {
+            String successUrl = inputSuccessUrl.getText().toString().trim();
+            String planUrl = inputPlanUrl.getText().toString().trim();
+
+            if (successUrl.isEmpty()) {
+                Toast.makeText(this, "Success Validation URL is required for Method A.", Toast.LENGTH_SHORT).show();
+                showMethodAUrlDialog(); // Show again
+                return;
+            }
+
+            currentService.setSuccessValidationUrl(successUrl);
+            currentService.setForceRedirectUrl(planUrl);
+
+            // Clear Method B fields
+            currentService.setSuccessKeywords(new ArrayList<>());
+            currentService.setSuccessSelector(null);
+            currentService.setSuccessOcrText(null);
+            currentService.setUseOcrForSuccess(false);
+
+            serviceRepo.addOrUpdateService(currentService);
+
+            String targetUrl = planUrl.isEmpty() ? successUrl : planUrl;
+            updateTerminal("Loading Target URL...");
+            mWebView.loadUrl(targetUrl);
+
+            // Wait for page load before opening scanner
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::openScannerOverlay, 5000);
+        });
+
+        builder.setNegativeButton("Cancel", (d, w) -> {
+            recordingMode = RECORD_MODE_NONE;
+            resetOverlayButtons();
+            startRecordingPhase2();
+        });
+
+        builder.show();
     }
 
     private void performFullPageOcrForSelection() {
@@ -1500,6 +1574,27 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         verificationAttempts++;
         // updateTerminal("Verifying... " + verificationAttempts + "/" + MAX_VERIFICATION_ATTEMPTS); // Verbose
 
+        // Method A: URL-based verification
+        String successValUrl = currentService.getSuccessValidationUrl();
+        if (successValUrl != null && !successValUrl.trim().isEmpty()) {
+            String currentUrl = mWebView.getUrl();
+            if (currentUrl != null && currentUrl.toLowerCase().contains(successValUrl.toLowerCase())) {
+                performBatchExtraction(targetIndex, " | Validated by URL", 0, false);
+                return; // Stop checking, we found it
+            } else {
+                if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
+                    logResult(false, "Timeout", targetIndex);
+                    moveToNext(targetIndex);
+                } else {
+                     // Not on success URL yet. Keep polling.
+                     verificationRunnable = () -> checkVerificationStatus(targetIndex);
+                     batchHandler.postDelayed(verificationRunnable, 2000);
+                }
+                return;
+            }
+        }
+
+        // Method B: Text/Click-based verification (OCR/JS)
         if (currentService.isUseOcrForSuccess()) {
              performOcr(0, 0, 1, 1, text -> {
                  if (!isBatchRunning || targetIndex != currentCredentialIndex) return;
