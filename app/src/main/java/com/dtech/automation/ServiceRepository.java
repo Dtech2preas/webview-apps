@@ -126,6 +126,7 @@ public class ServiceRepository {
         private String name;
         private String loginUrl;
         private String successUrl;
+        private String forceRedirectUrl;
         private String successSelector;
         private List<String> successKeywords;
         private List<String> failureKeywords;
@@ -155,6 +156,7 @@ public class ServiceRepository {
             obj.put("name", name);
             obj.put("loginUrl", loginUrl);
             obj.put("successUrl", successUrl);
+            obj.put("forceRedirectUrl", forceRedirectUrl);
             obj.put("successSelector", successSelector);
             obj.put("scriptJson", scriptJson);
             obj.put("userAgent", userAgent);
@@ -190,6 +192,7 @@ public class ServiceRepository {
                     obj.getString("loginUrl")
             );
             if (obj.has("successUrl")) s.successUrl = obj.getString("successUrl");
+            if (obj.has("forceRedirectUrl")) s.forceRedirectUrl = obj.getString("forceRedirectUrl");
             if (obj.has("successSelector")) s.successSelector = obj.getString("successSelector");
             if (obj.has("scriptJson")) s.scriptJson = obj.getString("scriptJson");
             if (obj.has("userAgent")) s.userAgent = obj.getString("userAgent");
@@ -233,6 +236,8 @@ public class ServiceRepository {
         public String getLoginUrl() { return loginUrl; }
         public String getSuccessUrl() { return successUrl; }
         public void setSuccessUrl(String url) { this.successUrl = url; }
+        public String getForceRedirectUrl() { return forceRedirectUrl; }
+        public void setForceRedirectUrl(String url) { this.forceRedirectUrl = url; }
         public String getSuccessSelector() { return successSelector; }
         public void setSuccessSelector(String selector) { this.successSelector = selector; }
         public List<String> getSuccessKeywords() { return successKeywords; }
