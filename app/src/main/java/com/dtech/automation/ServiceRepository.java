@@ -127,6 +127,7 @@ public class ServiceRepository {
         private String loginUrl;
         private String successUrl;
         private String forceRedirectUrl;
+        private String successValidationUrl; // Method A URL-based success verification
         private String successSelector;
         private List<String> successKeywords;
         private List<String> failureKeywords;
@@ -157,6 +158,7 @@ public class ServiceRepository {
             obj.put("loginUrl", loginUrl);
             obj.put("successUrl", successUrl);
             obj.put("forceRedirectUrl", forceRedirectUrl);
+            obj.put("successValidationUrl", successValidationUrl);
             obj.put("successSelector", successSelector);
             obj.put("scriptJson", scriptJson);
             obj.put("userAgent", userAgent);
@@ -193,6 +195,7 @@ public class ServiceRepository {
             );
             if (obj.has("successUrl")) s.successUrl = obj.getString("successUrl");
             if (obj.has("forceRedirectUrl")) s.forceRedirectUrl = obj.getString("forceRedirectUrl");
+            if (obj.has("successValidationUrl")) s.successValidationUrl = obj.getString("successValidationUrl");
             if (obj.has("successSelector")) s.successSelector = obj.getString("successSelector");
             if (obj.has("scriptJson")) s.scriptJson = obj.getString("scriptJson");
             if (obj.has("userAgent")) s.userAgent = obj.getString("userAgent");
@@ -238,6 +241,8 @@ public class ServiceRepository {
         public void setSuccessUrl(String url) { this.successUrl = url; }
         public String getForceRedirectUrl() { return forceRedirectUrl; }
         public void setForceRedirectUrl(String url) { this.forceRedirectUrl = url; }
+        public String getSuccessValidationUrl() { return successValidationUrl; }
+        public void setSuccessValidationUrl(String url) { this.successValidationUrl = url; }
         public String getSuccessSelector() { return successSelector; }
         public void setSuccessSelector(String selector) { this.successSelector = selector; }
         public List<String> getSuccessKeywords() { return successKeywords; }
