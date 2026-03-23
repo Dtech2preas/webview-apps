@@ -1018,12 +1018,46 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     private void showPostSuccessDialog(String reason, boolean forceManual) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this)
              .setTitle("Success Verification")
-             .setMessage(reason + "\n\nPlease use the Scanner tool to select something unique on this page.")
-             .setPositiveButton("Open Scanner", (d, w) -> openScannerOverlay())
+             .setMessage(reason + "\n\nPlease use the Scanner tool to select something unique on this page, or enter a Plan URL to force a redirect.")
              .setCancelable(false);
+
+        // Add a text input for the Force Redirect / Plan URL
+        final android.widget.EditText inputUrl = new android.widget.EditText(this);
+        inputUrl.setHint("Optional Plan URL (Force Redirect)");
+        inputUrl.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
+
+        // Add padding
+        android.widget.FrameLayout container = new android.widget.FrameLayout(this);
+        android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.leftMargin = (int) (16 * getResources().getDisplayMetrics().density);
+        params.rightMargin = (int) (16 * getResources().getDisplayMetrics().density);
+        inputUrl.setLayoutParams(params);
+        container.addView(inputUrl);
+        builder.setView(container);
+
+        builder.setPositiveButton("Save & Open Scanner", (d, w) -> {
+            String redirectUrl = inputUrl.getText().toString().trim();
+            if (!redirectUrl.isEmpty()) {
+                currentService.setForceRedirectUrl(redirectUrl);
+                serviceRepo.addOrUpdateService(currentService);
+
+                updateTerminal("Loading Plan URL...");
+                mWebView.loadUrl(redirectUrl);
+                // We should wait a bit for the page to load before opening scanner
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> openScannerOverlay(), 5000);
+            } else {
+                openScannerOverlay();
+            }
+        });
 
         if (!forceManual) {
             builder.setNegativeButton("Skip (Not Recommended)", (d, w) -> {
+                 String redirectUrl = inputUrl.getText().toString().trim();
+                 if (!redirectUrl.isEmpty()) {
+                     currentService.setForceRedirectUrl(redirectUrl);
+                 }
                  currentService.setSuccessKeywords(new ArrayList<>());
                  currentService.setSuccessSelector(null);
                  serviceRepo.addOrUpdateService(currentService);
@@ -1482,7 +1516,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                  }
 
                  if (verified) {
-                      performBatchExtraction(targetIndex, " | Validated by Smart OCR", 0);
+                      performBatchExtraction(targetIndex, " | Validated by Smart OCR", 0, false);
                  } else {
                       runJsVerification(targetIndex);
                  }
@@ -1500,7 +1534,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                 String actual = text.toLowerCase();
 
                 if (actual.contains(expected) || (expected.length() > 5 && actual.contains(expected.substring(0, 5)))) {
-                    performBatchExtraction(targetIndex, " | Validated by OCR", 0);
+                    performBatchExtraction(targetIndex, " | Validated by OCR", 0, false);
                 } else {
                      runJsVerification(targetIndex);
                 }
@@ -1565,7 +1599,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                              }
                              extracted = sb.toString();
                          }
-                         performBatchExtraction(targetIndex, extracted, 0);
+                         performBatchExtraction(targetIndex, extracted, 0, false);
 
                      } else if ("failure".equals(status)) {
                          logResult(false, res.optString("detail"), targetIndex);
@@ -1589,8 +1623,24 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         });
     }
 
-    private void performBatchExtraction(int targetIndex, String currentExtracted, int pointIndex) {
+    private void performBatchExtraction(int targetIndex, String currentExtracted, int pointIndex, boolean hasRedirected) {
         if (targetIndex != currentCredentialIndex || !isBatchRunning) return;
+
+        if (pointIndex == 0 && !hasRedirected) {
+            String forceRedirectUrl = currentService.getForceRedirectUrl();
+            if (forceRedirectUrl != null && !forceRedirectUrl.trim().isEmpty()) {
+                runOnUiThread(() -> {
+                    updateTerminal("Forcing Redirect to Plan URL...");
+                    mWebView.loadUrl(forceRedirectUrl);
+                    isWaitingForNext = true;
+                    batchHandler.postDelayed(() -> {
+                        isWaitingForNext = false;
+                        performBatchExtraction(targetIndex, currentExtracted, pointIndex, true);
+                    }, 5000); // Wait 5 seconds for page load
+                });
+                return;
+            }
+        }
 
         List<ServiceRepository.ExtractionPoint> points = currentService.getExtractionPoints();
         if (points == null || pointIndex >= points.size()) {
@@ -1614,10 +1664,10 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                  String label = p.getLabel();
                  String cleanText = text.replace("\n", " ").trim();
                  String newExtracted = currentExtracted + " | " + label + ": " + cleanText;
-                 performBatchExtraction(targetIndex, newExtracted, pointIndex + 1);
+                 performBatchExtraction(targetIndex, newExtracted, pointIndex + 1, hasRedirected);
              });
         } else {
-            performBatchExtraction(targetIndex, currentExtracted, pointIndex + 1);
+            performBatchExtraction(targetIndex, currentExtracted, pointIndex + 1, hasRedirected);
         }
     }
 
