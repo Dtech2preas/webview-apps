@@ -48,6 +48,25 @@
                 android:layout_height="wrap_content"
                 android:text="Evidence Locker (Save Screenshots)"
                 android:textColor="@color/dtech_text_primary"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Force Redirect Wait Time (Seconds)"
+                android:textColor="@color/dtech_cyan"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="4dp"/>
+
+            <EditText
+                android:id="@+id/et_redirect_wait_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:text="20"
+                android:textColor="@color/dtech_text_primary"
+                android:textColorHint="@color/dtech_text_secondary"
+                android:fontFamily="monospace"
+                android:textSize="14sp"/>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 

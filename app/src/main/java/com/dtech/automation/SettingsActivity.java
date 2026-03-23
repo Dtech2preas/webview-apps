@@ -20,8 +20,10 @@ public class SettingsActivity extends Activity {
     private Button btnSave, btnImportList;
     private Switch switchBiometric;
     private Switch switchEvidence;
+    private EditText etRedirectWaitTime;
 
     public static final String PREFS_NAME = "AutomationPrefs";
+    public static final String KEY_REDIRECT_WAIT_TIME = "redirect_wait_time";
     private String currentServiceId;
     private ServiceRepository serviceRepo;
     private SecurityManager securityManager;
@@ -39,6 +41,7 @@ public class SettingsActivity extends Activity {
         btnImportList = findViewById(R.id.btn_import_list);
         switchBiometric = findViewById(R.id.switch_biometric);
         switchEvidence = findViewById(R.id.switch_evidence);
+        etRedirectWaitTime = findViewById(R.id.et_redirect_wait_time);
 
         serviceRepo = new ServiceRepository(this);
         securityManager = new SecurityManager(this);
@@ -48,6 +51,10 @@ public class SettingsActivity extends Activity {
         // Load Global Security Settings
         switchBiometric.setChecked(securityManager.isBiometricEnabled());
         switchEvidence.setChecked(securityManager.isEvidenceEnabled());
+
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        int waitTime = prefs.getInt(KEY_REDIRECT_WAIT_TIME, 20);
+        etRedirectWaitTime.setText(String.valueOf(waitTime));
 
         // Load Service Specific Credentials
         ServiceRepository.ServiceData service = null;
@@ -66,6 +73,15 @@ public class SettingsActivity extends Activity {
             saveCredentials(targetId);
             securityManager.setBiometricEnabled(switchBiometric.isChecked());
             securityManager.setEvidenceEnabled(switchEvidence.isChecked());
+
+            try {
+                int newWaitTime = Integer.parseInt(etRedirectWaitTime.getText().toString().trim());
+                if (newWaitTime < 0) newWaitTime = 20;
+                getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().putInt(KEY_REDIRECT_WAIT_TIME, newWaitTime).apply();
+            } catch (NumberFormatException e) {
+                // Keep default if invalid
+            }
+
             Toast.makeText(this, "Settings Saved", Toast.LENGTH_SHORT).show();
             finish();
         });

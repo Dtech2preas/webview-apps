@@ -612,31 +612,42 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     }
 
     private void showLabelDialog(String selector, String text, float x, float y, float w, float h) {
+        android.widget.LinearLayout layout = new android.widget.LinearLayout(this);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int padding = (int) (16 * getResources().getDisplayMetrics().density);
+        layout.setPadding(padding, padding, padding, padding);
+
         final android.widget.EditText input = new android.widget.EditText(this);
         input.setHint("Label (e.g. Balance)");
+        layout.addView(input);
 
-        boolean hasDigits = text.matches(".*\\d.*");
-        String pattern = "";
-        if (hasDigits) {
-             String temp = text.replaceAll("\\d+", "___NUM___");
-             String escaped = temp.replace("\\", "\\\\").replace("$", "\\$").replace(".", "\\.");
-             pattern = escaped.replace("___NUM___", "\\d+");
-        }
+        final android.widget.CheckBox cbDynamic = new android.widget.CheckBox(this);
+        cbDynamic.setText("Use Dynamic Pattern (Detect numbers)");
+        cbDynamic.setChecked(false); // Default to exact text
+        layout.addView(cbDynamic);
 
-        String msg = "Captured: " + (text.length() > 50 ? text.substring(0, 50) + "..." : text) + "\n\n" +
-                     (hasDigits ? "Detected Numbers -> Smart Pattern Generated" : "Static Content");
-
-        final String finalPattern = pattern;
+        String msg = "Captured: " + (text.length() > 50 ? text.substring(0, 50) + "..." : text);
 
         new AlertDialog.Builder(this)
             .setTitle("Label this Element")
             .setMessage(msg)
-            .setView(input)
+            .setView(layout)
             .setPositiveButton("Save", (d, which) -> {
                 String label = input.getText().toString().trim();
                 if (label.isEmpty()) label = "Data";
 
-                tempExtractionPoints.add(new ServiceRepository.ExtractionPoint(selector, label, hasDigits, finalPattern, x, y, w, h));
+                boolean useDynamic = cbDynamic.isChecked();
+                boolean hasDigits = false;
+                String pattern = "";
+
+                if (useDynamic && text.matches(".*\\d.*")) {
+                    hasDigits = true;
+                    String temp = text.replaceAll("\\d+", "___NUM___");
+                    String escaped = temp.replace("\\", "\\\\").replace("$", "\\$").replace(".", "\\.");
+                    pattern = escaped.replace("___NUM___", "\\d+");
+                }
+
+                tempExtractionPoints.add(new ServiceRepository.ExtractionPoint(selector, label, hasDigits, pattern, x, y, w, h));
                 Toast.makeText(this, "Added: " + label, Toast.LENGTH_SHORT).show();
             })
             .setNegativeButton("Cancel", null)
@@ -1047,8 +1058,13 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
 
                 updateTerminal("Loading Plan URL...");
                 mWebView.loadUrl(redirectUrl);
+
+                SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+                int waitTimeSecs = prefs.getInt(SettingsActivity.KEY_REDIRECT_WAIT_TIME, 20);
+                long delayMs = waitTimeSecs * 1000L;
+
                 // We should wait a bit for the page to load before opening scanner
-                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> openScannerOverlay(), 5000);
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> openScannerOverlay(), delayMs);
             } else {
                 openScannerOverlay();
             }
@@ -1230,8 +1246,12 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
             updateTerminal("Loading Target URL...");
             mWebView.loadUrl(targetUrl);
 
+            SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+            int waitTimeSecs = prefs.getInt(SettingsActivity.KEY_REDIRECT_WAIT_TIME, 20);
+            long delayMs = waitTimeSecs * 1000L;
+
             // Wait for page load before opening scanner
-            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::openScannerOverlay, 5000);
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::openScannerOverlay, delayMs);
         });
 
         builder.setNegativeButton("Cancel", (d, w) -> {
@@ -1728,10 +1748,15 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                     updateTerminal("Forcing Redirect to Plan URL...");
                     mWebView.loadUrl(forceRedirectUrl);
                     isWaitingForNext = true;
+
+                    SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+                    int waitTimeSecs = prefs.getInt(SettingsActivity.KEY_REDIRECT_WAIT_TIME, 20);
+                    long delayMs = waitTimeSecs * 1000L;
+
                     batchHandler.postDelayed(() -> {
                         isWaitingForNext = false;
                         performBatchExtraction(targetIndex, currentExtracted, pointIndex, true);
-                    }, 5000); // Wait 5 seconds for page load
+                    }, delayMs);
                 });
                 return;
             }
