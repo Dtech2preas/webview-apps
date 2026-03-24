@@ -24,14 +24,11 @@ jobs:
       - name: Download portable Tesseract OCR
         run: |
           mkdir windows-app\tesseract
-          Invoke-WebRequest -Uri "https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.3.20231005/tesseract-ocr-w64-setup-5.3.3.20231005.exe" -OutFile "tesseract-installer.exe"
-          # Silently extract instead of installing if possible, or we download a zip archive.
-          # For simplicity in this workflow, we will download a pre-compiled portable zip
-          Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata/archive/refs/tags/4.1.0.zip" -OutFile "tessdata.zip"
-          # Since portable tesseract zips are less common, we'll download a known portable version
+
           Invoke-WebRequest -Uri "https://github.com/simonflueckiger/tesserocr-windows_build/releases/download/tesseract-5.3.1/tesseract-5.3.1-win64.zip" -OutFile "tesseract.zip"
           Expand-Archive -Path "tesseract.zip" -DestinationPath "windows-app\tesseract"
-          # It's important to bundle tessdata (language files)
+
+          mkdir windows-app\tesseract\tessdata
           Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata" -OutFile "windows-app\tesseract\tessdata\eng.traineddata"
 
       - name: Install dependencies
@@ -44,10 +41,8 @@ jobs:
       - name: Build EXE with PyInstaller
         run: |
           cd windows-app
-          # Bundle the app into a single executable and include the tesseract directory
           pyinstaller --noconfirm --onedir --windowed --add-data "tesseract;tesseract" --name "DTECH_Engine" "main.py"
 
-          # Zip the built folder
           Compress-Archive -Path dist\DTECH_Engine\* -DestinationPath DTECH_Engine_Windows.zip
 
       - name: Upload Artifact
