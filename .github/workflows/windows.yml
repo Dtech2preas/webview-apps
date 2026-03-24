@@ -4,33 +4,23 @@ on:
   push:
     branches: [ master ]
 
-permissions:
-  contents: write
-
 jobs:
   build:
     name: Build EXE
     runs-on: windows-latest
 
     steps:
+      # 📦 Clone repo
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 🐍 Python setup
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Download portable Tesseract OCR
-        run: |
-          mkdir windows-app\tesseract
-
-          Invoke-WebRequest -Uri "https://github.com/simonflueckiger/tesserocr-windows_build/releases/download/tesseract-5.3.1/tesseract-5.3.1-win64.zip" -OutFile "tesseract.zip"
-          Expand-Archive -Path "tesseract.zip" -DestinationPath "windows-app\tesseract"
-
-          mkdir windows-app\tesseract\tessdata
-          Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata" -OutFile "windows-app\tesseract\tessdata\eng.traineddata"
-
+      # 🔍 Install dependencies
       - name: Install dependencies
         run: |
           cd windows-app
@@ -38,16 +28,33 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      # ⚙️ Build EXE
       - name: Build EXE with PyInstaller
         run: |
           cd windows-app
-          pyinstaller --noconfirm --onedir --windowed --add-data "tesseract;tesseract" --name "DTECH_Engine" "main.py"
+          pyinstaller --noconfirm --onedir --windowed --name DTECH_Engine main.py
 
-          Compress-Archive -Path dist\DTECH_Engine\* -DestinationPath DTECH_Engine_Windows.zip
+      # 🧪 Debug (VERY IMPORTANT if anything fails)
+      - name: Debug files
+        run: |
+          echo "=== ROOT ==="
+          dir
+          echo "=== WINDOWS-APP ==="
+          dir windows-app
+          echo "=== DIST ==="
+          dir windows-app\dist
+          echo "=== OUTPUT ==="
+          dir windows-app\dist\DTECH_Engine
 
+      # 📦 Create ZIP
+      - name: Create ZIP
+        run: |
+          Compress-Archive -Path windows-app\dist\DTECH_Engine\* -DestinationPath windows-app\DTECH_Engine_Windows.zip
+
+      # 🚀 Upload Artifact
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: DTECH_Engine_Windows
-          path: windows-app/DTECH_Engine_Windows.zip
+          path: windows-app\DTECH_Engine_Windows.zip
           retention-days: 30
