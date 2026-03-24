@@ -1,0 +1,8 @@
+PyQt5==5.15.10
+PyQtWebEngine==5.15.6
+pytesseract==0.3.10
+Pillow==10.3.0
+cryptography==42.0.5
+requests==2.31.0
+pyinstaller==6.6.0
+pyqtgraph==0.13.3
