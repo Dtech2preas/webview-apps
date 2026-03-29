@@ -22,6 +22,66 @@
         successUrl = events[events.length - 1].url;
     }
 
+    // --- SHADOW DOM PIERCER ---
+    // Helper to find all shadow roots in the page
+    function findAllShadowRoots(root, roots) {
+        roots = roots || [];
+        if (root.shadowRoot) {
+            roots.push(root.shadowRoot);
+            findAllShadowRoots(root.shadowRoot, roots);
+        }
+        var children = root.children || root.childNodes;
+        if (children) {
+            for (var i = 0; i < children.length; i++) {
+                if (children[i].nodeType === 1) { // Element node
+                    findAllShadowRoots(children[i], roots);
+                }
+            }
+        }
+        return roots;
+    }
+
+    function querySelectorAllDeep(selector) {
+        var allRoots = [document];
+        findAllShadowRoots(document.documentElement, allRoots);
+        var results = [];
+        for (var i = 0; i < allRoots.length; i++) {
+            var els = allRoots[i].querySelectorAll(selector);
+            for (var j = 0; j < els.length; j++) {
+                results.push(els[j]);
+            }
+        }
+        return results;
+    }
+
+    // Helper to find text deeply across shadow boundaries
+    function findElementByTextDeep(text, isExact) {
+        if (!text) return null;
+        var cleanText = text.replace(/'/g, "\\'");
+        var allRoots = [document];
+        findAllShadowRoots(document.documentElement, allRoots);
+
+        for (var r = 0; r < allRoots.length; r++) {
+            var root = allRoots[r];
+            // Since XPath doesn't work well across shadow roots easily from the top,
+            // we use TreeWalker
+            var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+            var node;
+            while (node = walker.nextNode()) {
+                var nodeText = node.nodeValue.trim();
+                if (isExact ? nodeText === text : nodeText.includes(text)) {
+                    // Return the parent element of the text node
+                    var parent = node.parentElement;
+                    if (parent && parent.tagName !== 'SCRIPT' && parent.tagName !== 'STYLE') {
+                        return parent;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+
     // --- STRATEGY FINDER ---
     function findTarget(event) {
         // 0. ID (Strongest)
@@ -34,57 +94,58 @@
         if (event.name) {
             var els = document.getElementsByName(event.name);
             if (els.length > 0) return els[0];
-            var el = document.querySelector('[name="' + event.name + '"]');
-            if (el) return el;
+            var deepEls = querySelectorAllDeep('[name="' + event.name + '"]');
+            if (deepEls.length > 0) return deepEls[0];
         }
 
-        // 2. Text Content (Buttons, Links, Labels)
-        // We use XPath to find elements containing the text
+        // 2. Text Content (Deep Search - Buttons, Links, Labels)
         if (event.innerText && event.innerText.length > 1) {
-             var cleanText = event.innerText.replace(/'/g, "\'");
-             // Try exact match first
-             var xpathExact = "//*[text()='" + cleanText + "']";
-             var resExact = document.evaluate(xpathExact, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-             if (resExact.singleNodeValue) return resExact.singleNodeValue;
+             // Try exact match first (deep)
+             var exactDeep = findElementByTextDeep(event.innerText, true);
+             if (exactDeep) return exactDeep;
 
-             // Try contains
-             var xpathContains = "//*[contains(text(), '" + cleanText + "')]";
-             var resContains = document.evaluate(xpathContains, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-             if (resContains.singleNodeValue) return resContains.singleNodeValue;
+             // Try contains (deep)
+             var containsDeep = findElementByTextDeep(event.innerText, false);
+             if (containsDeep) return containsDeep;
         }
 
         // 3. Placeholder
         if (event.placeholder) {
-             var el = document.querySelector('[placeholder="' + event.placeholder + '"]');
-             if (el) return el;
+             var deepEls = querySelectorAllDeep('[placeholder="' + event.placeholder + '"]');
+             if (deepEls.length > 0) return deepEls[0];
         }
 
         // 4. Href (Links)
         if (event.href) {
-             // Strict match
-             var el = document.querySelector('a[href="' + event.href + '"]');
-             if (el) return el;
-             // Loose match
-             el = document.querySelector('a[href*="' + event.href + '"]');
-             if (el) return el;
+             var strictDeep = querySelectorAllDeep('a[href="' + event.href + '"]');
+             if (strictDeep.length > 0) return strictDeep[0];
+             var looseDeep = querySelectorAllDeep('a[href*="' + event.href + '"]');
+             if (looseDeep.length > 0) return looseDeep[0];
         }
 
-        // 5. Fallback: CSS Selector (Original)
-        if (event.selector) {
+        // 5. Robust XPath (New from Recorder)
+        if (event.xpath) {
             try {
-                var el = document.querySelector(event.selector);
-                if (el) return el;
+                var resXPath = document.evaluate(event.xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                if (resXPath.singleNodeValue) return resXPath.singleNodeValue;
             } catch(e) {}
         }
 
-        // 6. Class Name (Weakest, but useful if unique)
+        // 6. Fallback: CSS Selector (Deep)
+        if (event.selector) {
+            try {
+                var deepEls = querySelectorAllDeep(event.selector);
+                if (deepEls.length > 0) return deepEls[0];
+            } catch(e) {}
+        }
+
+        // 7. Class Name (Weakest, Deep Search)
         if (event.className) {
             try {
-                // Only if class name is not too generic
                 var classes = event.className.split(" ").filter(c => c.length > 5);
                 if (classes.length > 0) {
-                     var el = document.querySelector("." + classes.join("."));
-                     if (el) return el;
+                     var deepEls = querySelectorAllDeep("." + classes.join("."));
+                     if (deepEls.length > 0) return deepEls[0];
                 }
             } catch(e) {}
         }
@@ -99,36 +160,40 @@
 
             function checkConditions(el) {
                 var style = window.getComputedStyle(el);
-                var isVisible = style.display !== 'none' && style.visibility !== 'hidden' && (el.offsetWidth > 0 || el.offsetHeight > 0);
+
+                // Be more lenient with visibility - modals sometimes use opacity: 0 but pointer-events: auto, or vice versa.
+                // Or transform scaling. If it has width/height, consider it potentially visible unless explicitly none/hidden.
+                var isVisible = style.display !== 'none' &&
+                                style.visibility !== 'hidden' &&
+                                (el.offsetWidth > 0 || el.offsetHeight > 0 || el.getClientRects().length > 0);
+
                 var isDisabled = el.disabled === true || el.getAttribute("aria-disabled") === "true";
-                return isVisible && !isDisabled && document.body.contains(el);
+
+                // document.body.contains(el) fails for elements in Shadow DOM.
+                // Use composedPath() to check if it's connected to the main document.
+                var isConnected = el.isConnected;
+
+                return isVisible && !isDisabled && isConnected;
             }
 
-            // Quick check right away
-            var initialEl = findTarget(event);
-            if (initialEl && checkConditions(initialEl)) {
-                resolve(initialEl);
-                return;
-            }
-
-            var observer = new MutationObserver(function(mutations, obs) {
+            // Polling is more robust than MutationObserver here because Shadow DOM changes might not bubble up,
+            // and animations/CSS transitions don't reliably trigger MutationObserver.
+            var pollInterval = setInterval(function() {
                 var el = findTarget(event);
                 if (el && checkConditions(el)) {
-                    obs.disconnect();
+                    clearInterval(pollInterval);
                     clearTimeout(timeoutId);
-                    resolve(el);
-                }
-            });
 
-            observer.observe(document.body || document.documentElement, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['style', 'class', 'disabled']
-            });
+                    // Modals often animate in. Let's add a tiny buffer after we detect it's "visible"
+                    // to let animations settle, which prevents intercept errors.
+                    setTimeout(function() {
+                        resolve(el);
+                    }, 500);
+                }
+            }, 500);
 
             var timeoutId = setTimeout(function() {
-                observer.disconnect();
+                clearInterval(pollInterval);
                 // Final check before failing
                 var el = findTarget(event);
                 if (el && checkConditions(el)) {
@@ -229,16 +294,28 @@
 
             waitForElementRobust(event, 25000).then(function(el) {
                 if (!el) {
-                    console.error("Could not find element for event #" + index);
-                    // We stop here. The user must intervene or the batch logic will eventually time out (if configured).
-                    return;
-                }
+                    console.warn("Could not find element for event #" + index + " via selectors.");
 
-                // Execute
-                try {
-                    triggerAction(el, event, index);
-                } catch (e) {
-                    console.error("Error executing event #" + index, e);
+                    // --- EXTREME FALLBACK: Coordinate Force Click ---
+                    if (event.type === 'click' && event.clientX !== undefined && event.clientY !== undefined) {
+                        console.log("Attempting fallback coordinate click at " + event.clientX + ", " + event.clientY);
+                        var fallbackEl = document.elementFromPoint(event.clientX, event.clientY) || document.body;
+                        try {
+                            triggerAction(fallbackEl, event, index, { x: event.clientX, y: event.clientY });
+                        } catch(e) {
+                            console.error("Fallback coordinate click failed", e);
+                        }
+                    } else {
+                        console.error("No element and no coordinate fallback possible. Stopping here.");
+                        return; // Stop execution
+                    }
+                } else {
+                    // Execute normal action
+                    try {
+                        triggerAction(el, event, index);
+                    } catch (e) {
+                        console.error("Error executing event #" + index, e);
+                    }
                 }
 
                 // Notify Android
@@ -247,7 +324,6 @@
                 }
 
                 // Schedule Next
-                // Small delay to allow JS handlers to fire and potential navigation to start
                 setTimeout(function() {
                     processNextEvent(index + 1);
                 }, 100);
@@ -267,6 +343,13 @@
     }
 
     function triggerAction(el, event, index, forcedCoords) {
+        // Bring element into view first. Modals might be off-screen or part of a scrolling container.
+        try {
+            if (el && el.scrollIntoView && el !== document.body) {
+                el.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
+            }
+        } catch(e) {}
+
         if (event.type === 'click') {
             var clientX, clientY;
 
@@ -274,12 +357,25 @@
                 clientX = forcedCoords.x;
                 clientY = forcedCoords.y;
             } else {
-                // RANDOMIZATION LOGIC
                 var rect = el.getBoundingClientRect();
                 var cx = rect.left + (rect.width / 2);
                 var cy = rect.top + (rect.height / 2);
-                var rx = (Math.random() * 6) - 3;
-                var ry = (Math.random() * 6) - 3;
+
+                // OVERLAY PIERCING LOGIC:
+                // Check if an overlay is blocking our target element
+                // We use document.elementFromPoint on the center of our target element.
+                // If the element found is NOT our target (and not a descendant of it),
+                // it means an overlay is blocking it. We should dispatch the click to the overlay!
+                var topElement = document.elementFromPoint(cx, cy);
+                if (topElement && topElement !== el && !el.contains(topElement)) {
+                    console.log("Overlay detected! Target:", el, "Top element:", topElement);
+                    // Use the top element instead to simulate what a real user click would do
+                    el = topElement;
+                }
+
+                // Minor randomization
+                var rx = (Math.random() * 4) - 2;
+                var ry = (Math.random() * 4) - 2;
                 clientX = cx + rx;
                 clientY = cy + ry;
             }
@@ -298,9 +394,7 @@
             el.dispatchEvent(mouseUp);
             el.dispatchEvent(clickEvent);
 
-            // Native fallback (only if not coordinate mode, or maybe always?)
-            // If coordinate mode, el might be body or something wrong, so be careful with .click()
-            // But if we found an elementFromPoint, .click() is good.
+            // Native fallback (only if not coordinate mode, or if forcedCoords matched something useful)
             if (!coordinateMode || (forcedCoords && el !== document.body)) {
                  setTimeout(function(){ try { el.click(); } catch(e){} }, 10);
             }
