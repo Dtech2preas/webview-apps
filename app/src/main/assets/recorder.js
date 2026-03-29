@@ -70,10 +70,35 @@
         return path.join(" > ");
     }
 
+    function getRobustXPath(el) {
+        if (!el || el.nodeType !== 1) return '';
+        if (el.id && !/\d/.test(el.id)) return '//*[@id="' + el.id + '"]';
+
+        var paths = [];
+        for (; el && el.nodeType === 1; el = el.parentNode) {
+            var index = 0;
+            var hasFollowingSiblings = false;
+            for (var sibling = el.previousSibling; sibling; sibling = sibling.previousSibling) {
+                if (sibling.nodeType === Node.DOCUMENT_TYPE_NODE) continue;
+                if (sibling.nodeName === el.nodeName) ++index;
+            }
+            for (var sibling = el.nextSibling; sibling && !hasFollowingSiblings; sibling = sibling.nextSibling) {
+                if (sibling.nodeName === el.nodeName) hasFollowingSiblings = true;
+            }
+
+            var tagName = el.nodeName.toLowerCase();
+            var pathIndex = (index || hasFollowingSiblings ? "[" + (index + 1) + "]" : "");
+            paths.splice(0, 0, tagName + pathIndex);
+        }
+
+        return paths.length ? "/" + paths.join("/") : null;
+    }
+
     function recordEvent(type, target, value, extra) {
         var event = {
             type: type,
             selector: getSelector(target),
+            xpath: getRobustXPath(target),
             time: Date.now() - window.recordingStartTime,
             url: window.location.href,
             value: value,
@@ -125,11 +150,26 @@
             return;
         }
 
-        // Don't record clicks on recorder UI if we ever add one
-        recordEvent('click', e.target, null, {
+        // Capture both page-relative (for scrolling) and viewport-relative (for elementFromPoint)
+        // Also capture bounding box if possible to help with center-clicking
+        var extra = {
             x: e.pageX,
-            y: e.pageY
-        });
+            y: e.pageY,
+            clientX: e.clientX,
+            clientY: e.clientY
+        };
+
+        if (e.target && e.target.getBoundingClientRect) {
+            var rect = e.target.getBoundingClientRect();
+            extra.rect = {
+                top: rect.top,
+                left: rect.left,
+                width: rect.width,
+                height: rect.height
+            };
+        }
+
+        recordEvent('click', e.target, null, extra);
     }, true);
 
     // --- Success Analysis & Selection Mode ---
