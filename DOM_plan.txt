@@ -1,0 +1,10 @@
+1. Modify JS logic for DOM extraction:
+In MainActivity's performBatchExtraction, if p.isOcr() is false, it currently just continues without extracting text using DOM.
+We need to run javascript to extract text using the selector:
+mWebView.evaluateJavascript("javascript:(function() { var el = document.querySelector('" + p.getSelector() + "'); return el ? el.innerText : ''; })();", value -> { ... })
+
+2. In the extraction setup phase (Scanner Overlay), allow adding a DOM extraction point. Right now it draws a rectangle and saves OCR coordinates.
+To add DOM extraction point, we can add a button in the overlay or use the existing "Select Element" logic (which exists in `recorder.js` with `window.selectionModeActive = true`).
+Actually, we can inject a script to enable selection mode for extraction.
+
+Wait, the user said "Add DOM extraction". I can add a button "ADD DOM EXTRACTION" in Scanner Overlay. When clicked, it enables selection mode in webview (like `recorder.js` does), and when an element is clicked, `onSuccessElementSelected` is called with the selector. Then we prompt for a label and save it as a DOM extraction point.

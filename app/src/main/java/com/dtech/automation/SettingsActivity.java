@@ -20,10 +20,15 @@ public class SettingsActivity extends Activity {
     private Button btnSave, btnImportList;
     private Switch switchBiometric;
     private Switch switchEvidence;
+    private Switch switchProxy;
+    private EditText etProxyHost, etProxyPort;
     private EditText etRedirectWaitTime;
 
     public static final String PREFS_NAME = "AutomationPrefs";
     public static final String KEY_REDIRECT_WAIT_TIME = "redirect_wait_time";
+    public static final String KEY_PROXY_ENABLED = "proxy_enabled";
+    public static final String KEY_PROXY_HOST = "proxy_host";
+    public static final String KEY_PROXY_PORT = "proxy_port";
     private String currentServiceId;
     private ServiceRepository serviceRepo;
     private SecurityManager securityManager;
@@ -41,6 +46,9 @@ public class SettingsActivity extends Activity {
         btnImportList = findViewById(R.id.btn_import_list);
         switchBiometric = findViewById(R.id.switch_biometric);
         switchEvidence = findViewById(R.id.switch_evidence);
+        switchProxy = findViewById(R.id.switch_proxy);
+        etProxyHost = findViewById(R.id.et_proxy_host);
+        etProxyPort = findViewById(R.id.et_proxy_port);
         etRedirectWaitTime = findViewById(R.id.et_redirect_wait_time);
 
         serviceRepo = new ServiceRepository(this);
@@ -55,6 +63,10 @@ public class SettingsActivity extends Activity {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         int waitTime = prefs.getInt(KEY_REDIRECT_WAIT_TIME, 20);
         etRedirectWaitTime.setText(String.valueOf(waitTime));
+
+        switchProxy.setChecked(prefs.getBoolean(KEY_PROXY_ENABLED, false));
+        etProxyHost.setText(prefs.getString(KEY_PROXY_HOST, ""));
+        etProxyPort.setText(prefs.getString(KEY_PROXY_PORT, ""));
 
         // Load Service Specific Credentials
         ServiceRepository.ServiceData service = null;
@@ -77,7 +89,13 @@ public class SettingsActivity extends Activity {
             try {
                 int newWaitTime = Integer.parseInt(etRedirectWaitTime.getText().toString().trim());
                 if (newWaitTime < 0) newWaitTime = 20;
-                getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().putInt(KEY_REDIRECT_WAIT_TIME, newWaitTime).apply();
+
+                SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
+                editor.putInt(KEY_REDIRECT_WAIT_TIME, newWaitTime);
+                editor.putBoolean(KEY_PROXY_ENABLED, switchProxy.isChecked());
+                editor.putString(KEY_PROXY_HOST, etProxyHost.getText().toString().trim());
+                editor.putString(KEY_PROXY_PORT, etProxyPort.getText().toString().trim());
+                editor.apply();
             } catch (NumberFormatException e) {
                 // Keep default if invalid
             }

@@ -64,9 +64,10 @@
                 android:padding="8dp"
                 android:layout_marginBottom="80dp"> <!-- Lifted up to avoid bottom sheet -->
 
-                <Button android:id="@+id/btn_scan_catch" android:text="CATCH" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
-                <Button android:id="@+id/btn_scan_finish" android:text="FINISH" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
-                <Button android:id="@+id/btn_scan_cancel" android:text="CANCEL" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
+                <Button android:id="@+id/btn_scan_catch" android:text="OCR CATCH" android:textSize="10sp" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
+                <Button android:id="@+id/btn_scan_dom" android:text="DOM CATCH" android:textSize="10sp" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
+                <Button android:id="@+id/btn_scan_finish" android:text="FINISH" android:textSize="10sp" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
+                <Button android:id="@+id/btn_scan_cancel" android:text="CANCEL" android:textSize="10sp" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
             </LinearLayout>
         </RelativeLayout>
 

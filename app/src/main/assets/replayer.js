@@ -97,30 +97,46 @@
         return new Promise(function(resolve, reject) {
             var startTime = Date.now();
 
-            function check() {
-                var el = findTarget(event);
-                if (el) {
-                    // Check visibility
-                    var style = window.getComputedStyle(el);
-                    var isVisible = style.display !== 'none' && style.visibility !== 'hidden' && (el.offsetWidth > 0 || el.offsetHeight > 0);
-
-                    // Extra Stability Check: element must not be disabled
-                    var isDisabled = el.disabled === true || el.getAttribute("aria-disabled") === "true";
-
-                    if (isVisible && !isDisabled && document.body.contains(el)) {
-                        resolve(el);
-                        return;
-                    }
-                }
-
-                if (Date.now() - startTime > timeoutMs) {
-                    resolve(null); // Timed out
-                    return;
-                }
-
-                setTimeout(check, 200); // Check every 200ms
+            function checkConditions(el) {
+                var style = window.getComputedStyle(el);
+                var isVisible = style.display !== 'none' && style.visibility !== 'hidden' && (el.offsetWidth > 0 || el.offsetHeight > 0);
+                var isDisabled = el.disabled === true || el.getAttribute("aria-disabled") === "true";
+                return isVisible && !isDisabled && document.body.contains(el);
             }
-            check();
+
+            // Quick check right away
+            var initialEl = findTarget(event);
+            if (initialEl && checkConditions(initialEl)) {
+                resolve(initialEl);
+                return;
+            }
+
+            var observer = new MutationObserver(function(mutations, obs) {
+                var el = findTarget(event);
+                if (el && checkConditions(el)) {
+                    obs.disconnect();
+                    clearTimeout(timeoutId);
+                    resolve(el);
+                }
+            });
+
+            observer.observe(document.body || document.documentElement, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['style', 'class', 'disabled']
+            });
+
+            var timeoutId = setTimeout(function() {
+                observer.disconnect();
+                // Final check before failing
+                var el = findTarget(event);
+                if (el && checkConditions(el)) {
+                    resolve(el);
+                } else {
+                    resolve(null);
+                }
+            }, timeoutMs);
         });
     }
 
