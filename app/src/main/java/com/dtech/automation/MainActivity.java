@@ -29,6 +29,9 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
+import androidx.webkit.ProxyConfig;
+import androidx.webkit.ProxyController;
+import androidx.webkit.WebViewFeature;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
@@ -83,7 +86,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
 
     // Buttons in Floating Menu
     private Button btnRecordStep1, btnRecordStep2;
-    private Button btnPlaySingle, btnExecuteBatch, btnStopBatch;
+    private Button btnPlaySingle, btnExecuteBatch, btnStopBatch, btnCancelRecording;
     private Button btnSelectService, btnSessionResults, btnCredentials;
 
     // Draggable Logic
@@ -93,7 +96,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     // Scanner UI
     private RelativeLayout overlayScanner;
     private View draggableBox;
-    private Button btnScanCatch, btnScanFinish, btnScanCancel;
+    private Button btnScanCatch, btnScanDom, btnScanFinish, btnScanCancel;
     private Button btnScanSizeInc, btnScanSizeDec;
     private float dX, dY;
     private List<ServiceRepository.ExtractionPoint> tempExtractionPoints = new ArrayList<>();
@@ -160,6 +163,12 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
 
     private static final String PREFS_NAME = "AutomationPrefs";
     private static final String KEY_BATCH_INDEX = "batch_current_index";
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        applyProxySettings();
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -319,6 +328,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         btnSessionResults = overlayView.findViewById(R.id.btn_session_results);
         btnCredentials = overlayView.findViewById(R.id.btn_credentials);
         btnStopBatch = overlayView.findViewById(R.id.btn_stop_batch);
+        btnCancelRecording = overlayView.findViewById(R.id.btn_cancel_recording);
 
         // Setup Console Log
         consoleAdapter = new ConsoleLogAdapter();
@@ -362,6 +372,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         btnSessionResults.setOnClickListener(v -> { performHapticFeedback(); showOverlayResultsDialog(); });
         btnCredentials.setOnClickListener(v -> { performHapticFeedback(); showCredentialsDialog(); });
         btnStopBatch.setOnClickListener(v -> { performHapticFeedback(); stopBatch(); });
+        btnCancelRecording.setOnClickListener(v -> { performHapticFeedback(); cancelRecording(); });
 
         updateTerminal("System Ready.");
     }
@@ -521,6 +532,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         overlayScanner = findViewById(R.id.overlay_scanner);
         draggableBox = findViewById(R.id.draggable_box);
         btnScanCatch = findViewById(R.id.btn_scan_catch);
+        btnScanDom = findViewById(R.id.btn_scan_dom);
         btnScanFinish = findViewById(R.id.btn_scan_finish);
         btnScanCancel = findViewById(R.id.btn_scan_cancel);
         btnScanSizeInc = findViewById(R.id.btn_scan_size_inc);
@@ -561,6 +573,16 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                     return false;
             }
             return true;
+        });
+
+        btnScanDom.setOnClickListener(v -> {
+            if (isScanningForValidation) {
+                mWebView.evaluateJavascript("javascript:window.enableSelectionMode();", null);
+                Toast.makeText(this, "Tap the success indicator element", Toast.LENGTH_SHORT).show();
+            } else {
+                mWebView.evaluateJavascript("javascript:window.enableSelectionMode();", null);
+                Toast.makeText(this, "Tap the element to extract", Toast.LENGTH_SHORT).show();
+            }
         });
 
         btnScanCatch.setOnClickListener(v -> {
@@ -723,6 +745,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                     btnStopBatch.setVisibility(View.VISIBLE);
                     btnStopBatch.setText("STOP RECORDING");
                     btnStopBatch.setOnClickListener(v -> stopRecording());
+                    btnCancelRecording.setVisibility(View.VISIBLE);
 
                     android.webkit.CookieManager.getInstance().removeAllCookies(null);
                     mWebView.loadUrl(recordingStartUrl);
@@ -957,7 +980,30 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         onServiceSelected(imported);
     }
 
+    private void applyProxySettings() {
+        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+        boolean useProxy = prefs.getBoolean(SettingsActivity.KEY_PROXY_ENABLED, false);
+
+        if (useProxy && ProxyController.getInstance() != null && WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
+            String host = prefs.getString(SettingsActivity.KEY_PROXY_HOST, "");
+            String port = prefs.getString(SettingsActivity.KEY_PROXY_PORT, "");
+            if (!host.isEmpty() && !port.isEmpty()) {
+                ProxyConfig proxyConfig = new ProxyConfig.Builder()
+                        .addProxyRule(host + ":" + port)
+                        .addDirect().build();
+                ProxyController.getInstance().setProxyOverride(proxyConfig, Runnable::run, () -> {
+                    Log.d("Proxy", "Proxy applied: " + host + ":" + port);
+                });
+            } else {
+                ProxyController.getInstance().clearProxyOverride(Runnable::run, () -> {});
+            }
+        } else if (ProxyController.getInstance() != null && WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
+            ProxyController.getInstance().clearProxyOverride(Runnable::run, () -> {});
+        }
+    }
+
     private void setupWebView() {
+        applyProxySettings();
         WebSettings webSettings = mWebView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setAllowFileAccess(true);
@@ -1021,6 +1067,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                 btnStopBatch.setVisibility(View.VISIBLE);
                 btnStopBatch.setText("STOP RECORDING");
                 btnStopBatch.setOnClickListener(v -> stopRecording());
+                btnCancelRecording.setVisibility(View.VISIBLE);
 
                 mWebView.loadUrl(recordingStartUrl);
             })
@@ -1093,6 +1140,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         btnStopBatch.setVisibility(View.GONE);
         btnStopBatch.setText("STOP BATCH EXECUTION");
         btnStopBatch.setOnClickListener(v -> stopBatch());
+        btnCancelRecording.setVisibility(View.GONE);
     }
 
     private void openScannerOverlay() {
@@ -1139,6 +1187,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                 btnStopBatch.setVisibility(View.VISIBLE);
                 btnStopBatch.setText("STOP RECORDING");
                 btnStopBatch.setOnClickListener(v -> stopRecording());
+                btnCancelRecording.setVisibility(View.VISIBLE);
 
                  android.webkit.CookieManager.getInstance().removeAllCookies(null);
                  android.webkit.WebStorage.getInstance().deleteAllData();
@@ -1147,6 +1196,23 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
             })
             .setCancelable(false)
             .show();
+    }
+
+    private void cancelRecording() {
+        if (recordingMode == RECORD_MODE_NONE) return;
+        updateTerminal("Recording Cancelled.");
+
+        // Reset state
+        recordingMode = RECORD_MODE_NONE;
+        currentSessionEvents.clear();
+
+        // Reset UI
+        resetOverlayButtons();
+
+        // Inform JS to stop recording
+        mWebView.evaluateJavascript("javascript:window.isRecording = false;", null);
+
+        showCustomSnackbar("Recording Session Cancelled.", false);
     }
 
     private void stopRecording() {
@@ -1787,7 +1853,36 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                  performBatchExtraction(targetIndex, newExtracted, pointIndex + 1, hasRedirected);
              });
         } else {
-            performBatchExtraction(targetIndex, currentExtracted, pointIndex + 1, hasRedirected);
+            // DOM Extraction
+            String js = "javascript:(function() { " +
+                        "  var el = document.querySelector('" + p.getSelector().replace("'", "\\'") + "'); " +
+                        "  return el ? el.innerText : ''; " +
+                        "})();";
+            mWebView.evaluateJavascript(js, value -> {
+                 String text = "";
+                 if (value != null && !value.equals("null")) {
+                     text = value;
+                     if (text.startsWith("\"") && text.endsWith("\"") && text.length() > 1) {
+                         text = text.substring(1, text.length() - 1);
+                     }
+                 }
+
+                 // Apply pattern matching if necessary
+                 if (p.getPattern() != null && !p.getPattern().isEmpty()) {
+                     try {
+                         java.util.regex.Pattern regex = java.util.regex.Pattern.compile(p.getPattern());
+                         java.util.regex.Matcher matcher = regex.matcher(text);
+                         if (matcher.find()) {
+                             text = matcher.group();
+                         }
+                     } catch(Exception e) {}
+                 }
+
+                 String cleanText = text.replace("\n", " ").trim();
+                 String label = p.getLabel();
+                 String newExtracted = currentExtracted + " | " + label + ": " + cleanText;
+                 performBatchExtraction(targetIndex, newExtracted, pointIndex + 1, hasRedirected);
+            });
         }
     }
 
@@ -1811,16 +1906,29 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
 
         runOnUiThread(() -> {
-            updateTerminal("Challenge Detected. Waiting for user.");
+            updateTerminal("Challenge Detected. Waiting for user or skip.");
             new AlertDialog.Builder(this)
                 .setTitle("Challenge Detected")
-                .setMessage("Please solve the CAPTCHA or Challenge manually.")
+                .setMessage("A CAPTCHA or Challenge was detected.\n\nSolve it manually, or skip this account and continue the batch.")
                 .setCancelable(false)
                 .setPositiveButton("I Solved It", (d, w) -> {
                      verificationAttempts = 0;
                      checkVerificationStatus(targetIndex);
                 })
+                .setNegativeButton("Skip (Treat as Rate Limit)", (d, w) -> {
+                     logResult(false, "Rate Limited (Challenge)", targetIndex);
+                     moveToNext(targetIndex);
+                })
                 .show();
+
+            // Optional: Auto-skip after 2 minutes (120000ms)
+            batchHandler.postDelayed(() -> {
+                if (isBatchRunning && targetIndex == currentCredentialIndex) {
+                    // Assuming dialog might still be open, but we force move on
+                    logResult(false, "Rate Limited (Challenge Timeout)", targetIndex);
+                    moveToNext(targetIndex);
+                }
+            }, 120000);
         });
     }
 
@@ -2083,14 +2191,31 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         }
         @JavascriptInterface public void onSuccessElementSelected(String selector) {
             if (currentService != null) {
-                currentService.setSuccessSelector(selector);
-                currentService.setSuccessKeywords(new ArrayList<>());
-                serviceRepo.addOrUpdateService(currentService);
                 runOnUiThread(() -> {
-                     Toast.makeText(mContext, "Success Indicator Set!", Toast.LENGTH_SHORT).show();
-                     recordingMode = RECORD_MODE_NONE;
-                     resetOverlayButtons();
-                     startRecordingPhase2();
+                    if (overlayScanner.getVisibility() == View.VISIBLE && !isScanningForValidation) {
+                        // DOM Extraction
+                        showLabelDialog(selector, "[DOM Data Preview]", 0, 0, 0, 0);
+                    } else if (overlayScanner.getVisibility() == View.VISIBLE && isScanningForValidation) {
+                        currentService.setSuccessSelector(selector);
+                        currentService.setSuccessKeywords(new ArrayList<>());
+                        currentService.setSuccessOcrText(null);
+                        serviceRepo.addOrUpdateService(currentService);
+                        Toast.makeText(mContext, "Success Element Saved!", Toast.LENGTH_SHORT).show();
+                        overlayScanner.setVisibility(View.GONE);
+                        isScanningForValidation = false;
+                        recordingMode = RECORD_MODE_NONE;
+                        resetOverlayButtons();
+                        startRecordingPhase2();
+                    } else {
+                        currentService.setSuccessSelector(selector);
+                        currentService.setSuccessKeywords(new ArrayList<>());
+                        currentService.setSuccessOcrText(null);
+                        serviceRepo.addOrUpdateService(currentService);
+                        Toast.makeText(mContext, "Success Indicator Set!", Toast.LENGTH_SHORT).show();
+                        recordingMode = RECORD_MODE_NONE;
+                        resetOverlayButtons();
+                        startRecordingPhase2();
+                    }
                 });
             }
         }

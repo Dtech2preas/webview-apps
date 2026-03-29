@@ -52,6 +52,40 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:text="Proxy Settings"
+                android:textColor="@color/dtech_cyan"
+                android:textStyle="bold"
+                android:layout_marginTop="16dp" />
+
+            <Switch
+                android:id="@+id/switch_proxy"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Enable Proxy"
+                android:textColor="@color/dtech_text_primary"/>
+
+            <EditText
+                android:id="@+id/et_proxy_host"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Proxy Host (e.g. 192.168.1.1)"
+                android:textColorHint="@color/dtech_text_secondary"
+                android:textColor="@color/dtech_text_primary"
+                android:backgroundTint="@color/dtech_cyan"/>
+
+            <EditText
+                android:id="@+id/et_proxy_port"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Proxy Port (e.g. 8080)"
+                android:inputType="number"
+                android:textColorHint="@color/dtech_text_secondary"
+                android:textColor="@color/dtech_text_primary"
+                android:backgroundTint="@color/dtech_cyan"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:text="Force Redirect Wait Time (Seconds)"
                 android:textColor="@color/dtech_cyan"
                 android:layout_marginTop="16dp"
