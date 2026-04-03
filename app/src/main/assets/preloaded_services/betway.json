@@ -3,7 +3,7 @@
     "name": "Betway",
     "loginUrl": "https://www.betway.co.za",
     "successUrl": "https://www.betway.co.za/",
-    "scriptJson": "[{\"type\":\"click\",\"selector\":\"#__nuxt > div > div > main > div:nth-of-type(2) > button > div\",\"time\":3000},{\"type\":\"click\",\"selector\":\"#login-btn > div > span\",\"time\":4000},{\"type\":\"click\",\"selector\":\"#login-mobile\",\"time\":5000},{\"type\":\"input\",\"selector\":\"#login-mobile\",\"value\":\"{{PHONE_NUMBER}}\",\"time\":6000},{\"type\":\"click\",\"selector\":\"#login-password\",\"time\":7000},{\"type\":\"input\",\"selector\":\"#login-password\",\"value\":\"{{PASSWORD}}\",\"time\":8000},{\"type\":\"click\",\"selector\":\"html > body > div:nth-of-type(10) > div > div:nth-of-type(2) > div > div > form > div:nth-of-type(2) > button > div\",\"time\":9000}]",
+    "scriptJson": "[{\"type\":\"click\",\"selector\":\"#__nuxt > div > div > main > div:nth-of-type(2) > button > div\",\"time\":3000},{\"type\":\"click\",\"selector\":\"#login-btn > div > span\",\"time\":4000},{\"type\":\"click\",\"selector\":\"#login-mobile\",\"time\":5000},{\"type\":\"input\",\"selector\":\"#login-mobile\",\"value\":\"{{PHONE_NUMBER}}\",\"time\":6000},{\"type\":\"click\",\"selector\":\"#login-password\",\"time\":7000},{\"type\":\"input\",\"selector\":\"#login-password\",\"value\":\"{{PASSWORD}}\",\"time\":8000},{\"type\":\"wait\",\"time\":1000},{\"type\":\"click\",\"selector\":\"button[type='submit']\",\"time\":9000}]",
     "userAgent": "",
     "useOcrForSuccess": true,
     "successKeywords": ["Deposit"],
