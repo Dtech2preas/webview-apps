@@ -153,10 +153,6 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     private Runnable verificationRunnable;
     private Runnable nextCredentialRunnable;
 
-    // Auto Ad
-    private Handler adCheckHandler = new Handler(Looper.getMainLooper());
-    private Runnable adCheckRunnable;
-
     // Promo Popup Scheduler
     private Handler promoHandler = new Handler(Looper.getMainLooper());
     private Runnable promoRunnable;
@@ -221,7 +217,6 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         // Handle Intent (Import or Service Selection)
         handleIntent(getIntent());
 
-        startAdChecker();
         startPromoScheduler();
     }
 
@@ -237,17 +232,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         if (Intent.ACTION_VIEW.equals(intent.getAction()) && intent.getData() != null) {
             Uri uri = intent.getData();
 
-            // Peek for Metadata First
-            Bundle meta = fileManager.peekMetadata(uri);
-            if (meta != null) {
-                pendingImportUri = uri;
-                Intent unlock = new Intent(this, UnlockActivity.class);
-                unlock.putExtras(meta);
-                startActivityForResult(unlock, REQUEST_CODE_UNLOCK);
-                return;
-            }
-
-            // Legacy Import
+            // Read DTech file directly, skipping UnlockActivity ads
             ServiceRepository.ServiceData s = fileManager.importServiceFromUri(uri);
             if (s != null) {
                 s = new ServiceRepository.ServiceData(java.util.UUID.randomUUID().toString(), s.getName() + " (Imported)", s.getLoginUrl());
@@ -854,7 +839,6 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (adCheckRunnable != null) adCheckHandler.removeCallbacks(adCheckRunnable);
         if (promoRunnable != null) promoHandler.removeCallbacks(promoRunnable);
         if (batchHandler != null) {
             batchHandler.removeCallbacksAndMessages(null);
@@ -903,34 +887,9 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
-        if (requestCode == REQUEST_CODE_UNLOCK && resultCode == Activity.RESULT_OK) {
-            if (pendingImportUri != null) {
-                // Proceed with import after unlock
-                ServiceRepository.ServiceData s = fileManager.importServiceFromUri(pendingImportUri);
-                if (s != null) {
-                    s = new ServiceRepository.ServiceData(java.util.UUID.randomUUID().toString(), s.getName() + " (Imported)", s.getLoginUrl());
-                    // Copy fields (Deep Copy Logic shared below, simplified here for brevity but assuming importServiceFromUri works correctly)
-                    // Actually, let's reuse the logic
-                    finalizeImport(s);
-                } else {
-                    Toast.makeText(this, "Import Failed", Toast.LENGTH_SHORT).show();
-                }
-                pendingImportUri = null;
-            }
-        }
-
-        else if (requestCode == REQUEST_CODE_IMPORT_JSON && resultCode == Activity.RESULT_OK) {
+        if (requestCode == REQUEST_CODE_IMPORT_JSON && resultCode == Activity.RESULT_OK) {
             if (data != null && data.getData() != null) {
                 Uri uri = data.getData();
-
-                Bundle meta = fileManager.peekMetadata(uri);
-                if (meta != null) {
-                    pendingImportUri = uri;
-                    Intent unlock = new Intent(this, UnlockActivity.class);
-                    unlock.putExtras(meta);
-                    startActivityForResult(unlock, REQUEST_CODE_UNLOCK);
-                    return;
-                }
 
                 // Strict .dtech import only. Fallback JSON support removed.
                 ServiceRepository.ServiceData s = fileManager.importServiceFromUri(uri);
@@ -1595,6 +1554,21 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
             return;
         }
 
+        // Quota check before processing
+        if (!QuotaManager.deductQuota(this)) {
+            stopBatch();
+            runOnUiThread(() -> new AlertDialog.Builder(MainActivity.this)
+                .setTitle("Out of Quota")
+                .setMessage("You have 0 remaining tests. Please top up to continue.")
+                .setPositiveButton("Top Up Now", (dialog, which) -> {
+                    startActivity(new Intent(MainActivity.this, PaymentActivity.class));
+                })
+                .setNegativeButton("Cancel", null)
+                .setCancelable(false)
+                .show());
+            return;
+        }
+
         progressBatch.setProgress(currentCredentialIndex + 1);
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().putInt(KEY_BATCH_INDEX, currentCredentialIndex).apply();
         String currentPair = credentialList.get(currentCredentialIndex);
@@ -2130,28 +2104,6 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         } catch (Exception e) {
             Toast.makeText(this, "Export Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             e.printStackTrace();
-        }
-    }
-
-    private void startAdChecker() {
-        adCheckRunnable = new Runnable() {
-            public void run() {
-                if (System.currentTimeMillis() >= AdManager.getNextAdTime(MainActivity.this)) triggerAutoAd();
-                adCheckHandler.postDelayed(this, 30000);
-            }
-        };
-        adCheckHandler.postDelayed(adCheckRunnable, 5000);
-    }
-
-    private void triggerAutoAd() {
-        AdManager.resetAutoAdTimer(this);
-        String url = AdManager.getRandomAdUrl();
-        try {
-            startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)));
-        } catch (Exception e) {
-            android.content.Intent i = new android.content.Intent(this, AdActivity.class);
-            i.putExtra("url", url);
-            startActivity(i);
         }
     }
 

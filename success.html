@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Verification</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 50px 20px; }
+        .loader { border: 4px solid #333; border-top: 4px solid #4CAF50; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #status { font-size: 18px; margin-top: 20px; }
+        #done-btn { display: none; background: #4CAF50; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 30px; font-size: 16px; }
+    </style>
+</head>
+<body>
+
+    <h2 id="title">Verifying Payment...</h2>
+    <div id="loader" class="loader"></div>
+    <div id="status">Please wait while we verify your voucher.</div>
+    <button id="done-btn" onclick="closeApp()">Back to App</button>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        const orderId = urlParams.get('order_id');
+        const status = urlParams.get('status');
+
+        function closeApp() {
+            if (window.Android && window.Android.closePayment) {
+                window.Android.closePayment();
+            } else {
+                alert("Please close this window to return to the app.");
+            }
+        }
+
+        async function verify() {
+            if (!token || !orderId || status !== 'success') {
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('title').innerText = "Verification Failed";
+                document.getElementById('title').style.color = "#FF5252";
+                document.getElementById('status').innerText = "Invalid return parameters.";
+                document.getElementById('done-btn').style.display = 'inline-block';
+                return;
+            }
+
+            try {
+                const response = await fetch('https://dark-mud-87fb.jonasmochebane.workers.dev/verify-payment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: token, order_id: orderId })
+                });
+
+                const data = await response.json();
+
+                document.getElementById('loader').style.display = 'none';
+
+                if (response.ok && data.valid) {
+                    const amount = data.amount;
+                    document.getElementById('title').innerText = "Payment Successful!";
+                    document.getElementById('title').style.color = "#4CAF50";
+                    document.getElementById('status').innerText = `R${amount} added successfully.`;
+
+                    // Call Android App to update Quota
+                    if (window.Android && window.Android.addQuota) {
+                        window.Android.addQuota(amount);
+                    }
+
+                    document.getElementById('done-btn').style.display = 'inline-block';
+
+                } else {
+                    document.getElementById('title').innerText = "Payment Failed";
+                    document.getElementById('title').style.color = "#FF5252";
+                    document.getElementById('status').innerText = data.error || "Unknown error occurred.";
+                    document.getElementById('done-btn').style.display = 'inline-block';
+                }
+
+            } catch (error) {
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('title').innerText = "Connection Error";
+                document.getElementById('title').style.color = "#FF5252";
+                document.getElementById('status').innerText = "Could not reach verification server.";
+                document.getElementById('done-btn').style.display = 'inline-block';
+            }
+        }
+
+        // Start verification on load
+        verify();
+
+    </script>
+</body>
+</html>

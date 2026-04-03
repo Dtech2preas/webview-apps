@@ -68,17 +68,10 @@
         <activity android:name=".SimpleResultsActivity"
                   android:configChanges="orientation|screenSize" />
 
-        <!-- Ad Activity (Popup) -->
-        <activity android:name=".AdActivity"
-            android:configChanges="orientation|screenSize|keyboardHidden"
-            android:theme="@android:style/Theme.NoTitleBar.Fullscreen"/>
-
         <activity android:name=".SettingsActivity" />
         <activity android:name=".InfoActivity" />
-        <activity android:name=".AdSystemActivity"
-                  android:theme="@android:style/Theme.NoTitleBar" />
-        <activity android:name=".UnlockActivity"
-                  android:theme="@style/AppTheme"/>
+        <activity android:name=".PaymentActivity"
+                  android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
 
         <service
             android:name=".AutomationService"
