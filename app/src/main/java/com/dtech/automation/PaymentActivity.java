@@ -60,15 +60,8 @@ public class PaymentActivity extends AppCompatActivity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                String url = request.getUrl().toString();
-                // Allow domains related to payment
-                if (url.contains("preasx24.co.za") || url.contains("dtech-services.co.za")) {
-                    return false; // let webview load
-                }
-                // Open others in external browser
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                startActivity(intent);
-                return true;
+                // Allow all domains to load directly in WebView to match "any URL load without issue" request
+                return false;
             }
         });
 
