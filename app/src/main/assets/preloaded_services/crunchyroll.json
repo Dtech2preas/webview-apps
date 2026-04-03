@@ -1,0 +1,6 @@
+{
+  "id": "crunchyroll_default",
+  "name": "Crunchyroll",
+  "loginUrl": "https://www.crunchyroll.com/login",
+  "scriptJson": "[]"
+}

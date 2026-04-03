@@ -69,7 +69,8 @@
         <activity android:name=".SimpleResultsActivity"
                   android:configChanges="orientation|screenSize" />
 
-        <activity android:name=".SettingsActivity" />
+                <activity android:name=".SettingsActivity" />
+        <activity android:name=".DeveloperActivity" />
         <activity android:name=".InfoActivity" />
         <activity android:name=".PaymentActivity"
                   android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
