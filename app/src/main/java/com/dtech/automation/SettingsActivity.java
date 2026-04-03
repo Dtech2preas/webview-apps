@@ -20,6 +20,7 @@ public class SettingsActivity extends Activity {
     private Button btnSave, btnImportList;
     private Switch switchBiometric;
     private Switch switchEvidence;
+    private Switch switchKeepScreenOn;
     private Switch switchProxy;
     private EditText etProxyHost, etProxyPort;
     private EditText etRedirectWaitTime;
@@ -29,6 +30,7 @@ public class SettingsActivity extends Activity {
     public static final String KEY_PROXY_ENABLED = "proxy_enabled";
     public static final String KEY_PROXY_HOST = "proxy_host";
     public static final String KEY_PROXY_PORT = "proxy_port";
+    public static final String KEY_KEEP_SCREEN_ON = "keep_screen_on";
     private String currentServiceId;
     private ServiceRepository serviceRepo;
     private SecurityManager securityManager;
@@ -46,6 +48,7 @@ public class SettingsActivity extends Activity {
         btnImportList = findViewById(R.id.btn_import_list);
         switchBiometric = findViewById(R.id.switch_biometric);
         switchEvidence = findViewById(R.id.switch_evidence);
+        switchKeepScreenOn = findViewById(R.id.switch_keep_screen_on);
         switchProxy = findViewById(R.id.switch_proxy);
         etProxyHost = findViewById(R.id.et_proxy_host);
         etProxyPort = findViewById(R.id.et_proxy_port);
@@ -61,6 +64,8 @@ public class SettingsActivity extends Activity {
         switchEvidence.setChecked(securityManager.isEvidenceEnabled());
 
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        switchKeepScreenOn.setChecked(prefs.getBoolean(KEY_KEEP_SCREEN_ON, false));
+
         int waitTime = prefs.getInt(KEY_REDIRECT_WAIT_TIME, 20);
         etRedirectWaitTime.setText(String.valueOf(waitTime));
 
@@ -95,6 +100,7 @@ public class SettingsActivity extends Activity {
                 editor.putBoolean(KEY_PROXY_ENABLED, switchProxy.isChecked());
                 editor.putString(KEY_PROXY_HOST, etProxyHost.getText().toString().trim());
                 editor.putString(KEY_PROXY_PORT, etProxyPort.getText().toString().trim());
+                editor.putBoolean(KEY_KEEP_SCREEN_ON, switchKeepScreenOn.isChecked());
                 editor.apply();
             } catch (NumberFormatException e) {
                 // Keep default if invalid

@@ -49,6 +49,14 @@
                 android:text="Evidence Locker (Save Screenshots)"
                 android:textColor="@color/dtech_text_primary"/>
 
+            <Switch
+                android:id="@+id/switch_keep_screen_on"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Keep Screen On Always"
+                android:textColor="@color/dtech_text_primary"
+                android:layout_marginTop="8dp"/>
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

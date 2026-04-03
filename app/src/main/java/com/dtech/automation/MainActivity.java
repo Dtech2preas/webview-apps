@@ -168,6 +168,17 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     protected void onResume() {
         super.onResume();
         applyProxySettings();
+        applyScreenOnSettings();
+    }
+
+    private void applyScreenOnSettings() {
+        SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+        boolean keepScreenOn = prefs.getBoolean(SettingsActivity.KEY_KEEP_SCREEN_ON, false);
+        if (keepScreenOn) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } else if (overlayStealth == null || overlayStealth.getVisibility() != View.VISIBLE) {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -282,7 +293,11 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
             Toast.makeText(this, "STEALTH ACTIVE (Double Tap to wake)", Toast.LENGTH_SHORT).show();
         } else {
             overlayStealth.setVisibility(View.GONE);
-            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            SharedPreferences prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE);
+            boolean keepScreenOn = prefs.getBoolean(SettingsActivity.KEY_KEEP_SCREEN_ON, false);
+            if (!keepScreenOn) {
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            }
         }
     }
 
