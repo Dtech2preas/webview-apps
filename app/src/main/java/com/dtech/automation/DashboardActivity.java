@@ -82,6 +82,9 @@ public class DashboardActivity extends Activity {
         options.add(new MenuOption("Info & Help", android.R.drawable.ic_menu_help, () -> {
             startActivity(new Intent(DashboardActivity.this, InfoActivity.class));
         }));
+        options.add(new MenuOption("Settings", android.R.drawable.ic_menu_preferences, () -> {
+            startActivity(new Intent(DashboardActivity.this, SettingsActivity.class));
+        }));
 
         MenuAdapter adapter = new MenuAdapter(options);
         recyclerMenu.setLayoutManager(new GridLayoutManager(this, 2));
