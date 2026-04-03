@@ -29,6 +29,7 @@ public class DashboardActivity extends Activity {
     private Button btnQuickStart;
     private RecyclerView recyclerMenu;
     private View viewStatusPulse;
+    private TextView tvQuota;
     private ServiceRepository serviceRepo;
 
     @Override
@@ -43,6 +44,7 @@ public class DashboardActivity extends Activity {
         btnQuickStart = findViewById(R.id.btn_quick_start);
         recyclerMenu = findViewById(R.id.recycler_menu);
         viewStatusPulse = findViewById(R.id.view_status_pulse);
+        tvQuota = findViewById(R.id.tv_quota);
 
         setupGrid();
         setupPulseAnimation();
@@ -53,6 +55,12 @@ public class DashboardActivity extends Activity {
     protected void onResume() {
         super.onResume();
         loadQuickResume();
+        updateQuotaDisplay();
+    }
+
+    private void updateQuotaDisplay() {
+        int quota = QuotaManager.getQuota(this);
+        tvQuota.setText("Remaining Tests: " + quota);
     }
 
     private void setupPulseAnimation() {
@@ -76,8 +84,8 @@ public class DashboardActivity extends Activity {
         options.add(new MenuOption("Results History", android.R.drawable.ic_menu_recent_history, () -> {
             startActivity(new Intent(DashboardActivity.this, SimpleResultsActivity.class));
         }));
-        options.add(new MenuOption("Ad System", android.R.drawable.ic_menu_slideshow, () -> {
-            startActivity(new Intent(DashboardActivity.this, AdSystemActivity.class));
+        options.add(new MenuOption("Top Up Quota", android.R.drawable.ic_menu_slideshow, () -> {
+            startActivity(new Intent(DashboardActivity.this, PaymentActivity.class));
         }));
         options.add(new MenuOption("Info & Help", android.R.drawable.ic_menu_help, () -> {
             startActivity(new Intent(DashboardActivity.this, InfoActivity.class));

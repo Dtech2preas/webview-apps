@@ -61,6 +61,17 @@
                 android:layout_marginStart="8dp" />
         </LinearLayout>
 
+        <!-- Quota Display -->
+        <TextView
+            android:id="@+id/tv_quota"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Remaining Tests: 0"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/dtech_purple"
+            android:layout_marginTop="8dp" />
+
     </LinearLayout>
 
     <!-- Scrollable Content -->

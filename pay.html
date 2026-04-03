@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top Up Test Accounts</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 20px; }
+        .voucher-card { background: #1e1e1e; padding: 20px; margin: 10px auto; border-radius: 8px; width: 80%; max-width: 300px; border: 1px solid #333; }
+        .voucher-card h3 { margin: 0 0 10px 0; color: #4CAF50; }
+        .voucher-card p { margin: 0 0 15px 0; color: #ccc; }
+        .voucher-card button { background: #2196F3; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; }
+        .voucher-card button:hover { background: #1976D2; }
+    </style>
+</head>
+<body>
+
+    <h2>Select Voucher Package</h2>
+    <p>Pay with D-TECH vouchers to add test accounts.</p>
+
+    <div class="voucher-card">
+        <h3>R10</h3>
+        <p>100 Test Accounts</p>
+        <button onclick="buy(10, '100 Test Accounts')">Buy Now</button>
+    </div>
+
+    <div class="voucher-card">
+        <h3>R20</h3>
+        <p>250 Test Accounts</p>
+        <button onclick="buy(20, '250 Test Accounts')">Buy Now</button>
+    </div>
+
+    <div class="voucher-card">
+        <h3>R30</h3>
+        <p>400 Test Accounts</p>
+        <button onclick="buy(30, '400 Test Accounts')">Buy Now</button>
+    </div>
+
+    <div class="voucher-card">
+        <h3>R40</h3>
+        <p>600 Test Accounts</p>
+        <button onclick="buy(40, '600 Test Accounts')">Buy Now</button>
+    </div>
+
+    <div class="voucher-card">
+        <h3>R50</h3>
+        <p>1000 Test Accounts</p>
+        <button onclick="buy(50, '1000 Test Accounts')">Buy Now</button>
+    </div>
+
+    <script>
+        function buy(amount, itemName) {
+            const orderId = 'ORD-' + Math.floor(Math.random() * 1000000);
+            const returnUrl = encodeURIComponent('https://preasx24.co.za/success.html');
+            const targetUrl = `https://student.dtech-services.co.za/payment.html?amount=${amount}&item=${encodeURIComponent(itemName)}&order_id=${orderId}&return_url=${returnUrl}`;
+            window.location.href = targetUrl;
+        }
+    </script>
+
+</body>
+</html>
