@@ -76,6 +76,7 @@
             <!-- Record -->
             <Button
                 android:id="@+id/btn_deck_record"
+                android:visibility="gone"
                 style="@style/CyberButton"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"

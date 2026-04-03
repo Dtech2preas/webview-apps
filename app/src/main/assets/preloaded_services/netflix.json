@@ -1,0 +1,6 @@
+{
+  "id": "netflix_default",
+  "name": "Netflix",
+  "loginUrl": "https://www.netflix.com/login",
+  "scriptJson": "[]"
+}

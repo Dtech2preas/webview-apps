@@ -40,6 +40,7 @@
 
         <Button
             android:id="@+id/btn_import_service"
+            android:visibility="gone"
             style="@style/CyberButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"

@@ -1,0 +1,6 @@
+{
+  "id": "betway_default",
+  "name": "Betway",
+  "loginUrl": "https://www.betway.co.za/Account/LoginForm",
+  "scriptJson": "[]"
+}
