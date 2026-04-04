@@ -127,6 +127,22 @@ private void loadServices() {
         saveServices();
     }
 
+    public void updateServiceRemote(ServiceData service) {
+        // Update existing by name (override), or add if not found
+        for (int i = 0; i < services.size(); i++) {
+            if (services.get(i).getName().equals(service.getName())) {
+                // Keep the same ID so selection logic doesn't break
+                service.id = services.get(i).getId();
+                services.set(i, service);
+                saveServices();
+                return;
+            }
+        }
+        // If not found by name, just add it
+        services.add(service);
+        saveServices();
+    }
+
     public void deleteService(String id) {
         for (int i = 0; i < services.size(); i++) {
             if (services.get(i).getId().equals(id)) {
