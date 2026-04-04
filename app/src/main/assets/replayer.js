@@ -351,6 +351,12 @@
         } catch(e) {}
 
         if (event.type === 'click') {
+            // REMOVE DISABLED ATTRIBUTE
+            if (el && el.hasAttribute && el.hasAttribute('disabled')) {
+                console.log("Removing 'disabled' attribute from target element");
+                el.removeAttribute('disabled');
+            }
+
             var clientX, clientY;
 
             if (forcedCoords) {
@@ -383,20 +389,33 @@
             var clickEvent = new MouseEvent('click', {
                 view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
             });
+            var pointerDown = new PointerEvent('pointerdown', {
+                view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+            });
             var mouseDown = new MouseEvent('mousedown', {
+                view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+            });
+            var pointerUp = new PointerEvent('pointerup', {
                 view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
             });
             var mouseUp = new MouseEvent('mouseup', {
                 view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
             });
 
+            try { el.focus(); } catch(e) {}
+            el.dispatchEvent(pointerDown);
             el.dispatchEvent(mouseDown);
+            el.dispatchEvent(pointerUp);
             el.dispatchEvent(mouseUp);
             el.dispatchEvent(clickEvent);
 
             // Native fallback (only if not coordinate mode, or if forcedCoords matched something useful)
             if (!coordinateMode || (forcedCoords && el !== document.body)) {
-                 setTimeout(function(){ try { el.click(); } catch(e){} }, 10);
+                 setTimeout(function(){
+                     try { el.click(); } catch(e){}
+                     // Also try submitting if it's a form button and we clicked
+                     try { if (el.form) el.form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); } catch(e){}
+                 }, 10);
             }
 
         } else if (event.type === 'input') {
@@ -445,6 +464,9 @@
                  }
             }
 
+            // Focus first
+            try { el.focus(); } catch(e){}
+
             // React/Angular Value Setter workaround
             var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
             if (nativeInputValueSetter) {
@@ -455,9 +477,13 @@
 
             el.dispatchEvent(new Event('input', { bubbles: true }));
             el.dispatchEvent(new Event('change', { bubbles: true }));
-            // Dispatch key events to simulate typing? (Simplified for now)
-            el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
-            el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+            // Dispatch key events to simulate typing
+            el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: valToSet.slice(-1) }));
+            el.dispatchEvent(new KeyboardEvent('keypress', { bubbles: true, key: valToSet.slice(-1) }));
+            el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: valToSet.slice(-1) }));
+
+            // Blur to trigger validation on some forms
+            try { el.blur(); } catch(e){}
 
         } else if (event.type === 'scroll') {
             window.scrollTo(event.value.x, event.value.y);
