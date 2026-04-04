@@ -86,7 +86,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
 
     // Buttons in Floating Menu
     private Button btnRecordStep1, btnRecordStep2;
-    private Button btnPlaySingle, btnExecuteBatch, btnStopBatch, btnCancelRecording;
+    private Button btnPlaySingle, btnExecuteBatch, btnStopBatch, btnCancelRecording, btnForceClick;
     private Button btnSelectService, btnSessionResults, btnCredentials;
 
     // Draggable Logic
@@ -337,6 +337,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         btnCredentials = overlayView.findViewById(R.id.btn_credentials);
         btnStopBatch = overlayView.findViewById(R.id.btn_stop_batch);
         btnCancelRecording = overlayView.findViewById(R.id.btn_cancel_recording);
+        btnForceClick = overlayView.findViewById(R.id.btn_force_click);
 
         // Setup Console Log
         consoleAdapter = new ConsoleLogAdapter();
@@ -381,6 +382,12 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         btnCredentials.setOnClickListener(v -> { performHapticFeedback(); showCredentialsDialog(); });
         btnStopBatch.setOnClickListener(v -> { performHapticFeedback(); stopBatch(); });
         btnCancelRecording.setOnClickListener(v -> { performHapticFeedback(); cancelRecording(); });
+
+        btnForceClick.setOnClickListener(v -> {
+            performHapticFeedback();
+            mWebView.evaluateJavascript("javascript:window.enableForceClickMode();", null);
+            Toast.makeText(this, "Tap the screen to record a Force Click.", Toast.LENGTH_SHORT).show();
+        });
 
         updateTerminal("System Ready.");
     }
@@ -754,6 +761,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                     btnStopBatch.setText("STOP RECORDING");
                     btnStopBatch.setOnClickListener(v -> stopRecording());
                     btnCancelRecording.setVisibility(View.VISIBLE);
+                    btnForceClick.setVisibility(View.VISIBLE);
 
                     android.webkit.CookieManager.getInstance().removeAllCookies(null);
                     mWebView.loadUrl(recordingStartUrl);
@@ -995,6 +1003,27 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
 
         mWebView.addJavascriptInterface(new WebAppInterface(this), "Android");
 
+        // Set WebChromeClient to auto-handle native popups
+        mWebView.setWebChromeClient(new android.webkit.WebChromeClient() {
+            @Override
+            public boolean onJsAlert(WebView view, String url, String message, android.webkit.JsResult result) {
+                result.confirm();
+                return true;
+            }
+
+            @Override
+            public boolean onJsConfirm(WebView view, String url, String message, android.webkit.JsResult result) {
+                result.confirm();
+                return true;
+            }
+
+            @Override
+            public boolean onJsPrompt(WebView view, String url, String message, String defaultValue, android.webkit.JsPromptResult result) {
+                result.confirm(defaultValue);
+                return true;
+            }
+        });
+
         mWebView.setWebViewClient(new WebViewClient() {
             @Override
             public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
@@ -1050,6 +1079,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                 btnStopBatch.setText("STOP RECORDING");
                 btnStopBatch.setOnClickListener(v -> stopRecording());
                 btnCancelRecording.setVisibility(View.VISIBLE);
+                btnForceClick.setVisibility(View.VISIBLE);
 
                 mWebView.loadUrl(recordingStartUrl);
             })
@@ -1123,6 +1153,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         btnStopBatch.setText("STOP BATCH EXECUTION");
         btnStopBatch.setOnClickListener(v -> stopBatch());
         btnCancelRecording.setVisibility(View.GONE);
+        btnForceClick.setVisibility(View.GONE);
     }
 
     private void openScannerOverlay() {
@@ -1170,6 +1201,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                 btnStopBatch.setText("STOP RECORDING");
                 btnStopBatch.setOnClickListener(v -> stopRecording());
                 btnCancelRecording.setVisibility(View.VISIBLE);
+                btnForceClick.setVisibility(View.VISIBLE);
 
                  android.webkit.CookieManager.getInstance().removeAllCookies(null);
                  android.webkit.WebStorage.getInstance().deleteAllData();
@@ -1955,24 +1987,8 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
 
         if (index == 0 && !useCoordinateMode) {
-             if (currentService.getName().toLowerCase().contains("(imported)")) {
-                 // Auto-verify: Immediately trigger success (next)
-                 moveToNext(index);
-                 return;
-             }
-             runOnUiThread(() -> {
-                 new AlertDialog.Builder(this)
-                     .setTitle("Did the automation work?")
-                     .setMessage("Confirm typing/clicking worked?")
-                     .setPositiveButton("Yes", (d, w) -> moveToNext(index))
-                     .setNegativeButton("No, Try Coordinates", (d, w) -> {
-                         useCoordinateMode = true;
-                         currentCredentialIndex = 0;
-                         processNextCredential();
-                     })
-                     .setCancelable(false)
-                     .show();
-             });
+             // Auto-verify: Immediately trigger success (next)
+             moveToNext(index);
              return;
         }
     }

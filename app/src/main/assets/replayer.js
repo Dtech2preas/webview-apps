@@ -252,6 +252,54 @@
         // Wait for Page Load before anything
         waitForPageLoad().then(function() {
 
+            // Force Coordinate Click Logic (Blindly click coordinates)
+            if (event.type === 'force_coordinate_click') {
+                console.log("Force Coordinate Click Mode: Clicking at " + event.x + ", " + event.y);
+
+                // Scroll to target (centered)
+                var targetX = event.x - (window.innerWidth / 2);
+                var targetY = event.y - (window.innerHeight / 2);
+                window.scrollTo(targetX, targetY);
+
+                // Wait for scroll
+                setTimeout(function() {
+                     // Calculate Client Coordinates (Viewport relative)
+                     var clientX = event.x - window.pageXOffset;
+                     var clientY = event.y - window.pageYOffset;
+
+                     // Dispatch click blindly
+                     var clickEvent = new MouseEvent('click', {
+                         view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+                     });
+                     var pointerDown = new PointerEvent('pointerdown', {
+                         view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+                     });
+                     var mouseDown = new MouseEvent('mousedown', {
+                         view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+                     });
+                     var pointerUp = new PointerEvent('pointerup', {
+                         view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+                     });
+                     var mouseUp = new MouseEvent('mouseup', {
+                         view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+                     });
+
+                     var el = document.elementFromPoint(clientX, clientY) || document.body;
+
+                     try { el.focus(); } catch(e) {}
+                     el.dispatchEvent(pointerDown);
+                     el.dispatchEvent(mouseDown);
+                     el.dispatchEvent(pointerUp);
+                     el.dispatchEvent(mouseUp);
+                     el.dispatchEvent(clickEvent);
+
+                     if (window.Android && window.Android.eventExecuted) window.Android.eventExecuted(index);
+                     setTimeout(function() { processNextEvent(index + 1); }, 500);
+                }, 300);
+
+                return;
+            }
+
             // Coordinate Mode Logic (Bypass Element Search for Clicks)
             if (coordinateMode && event.type === 'click' && event.x !== undefined && event.y !== undefined) {
                 console.log("Coordinate Mode: Clicking at " + event.x + ", " + event.y);

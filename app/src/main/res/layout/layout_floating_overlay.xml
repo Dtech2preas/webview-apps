@@ -166,6 +166,15 @@
                     android:visibility="gone" />
 
                 <Button
+                    android:id="@+id/btn_force_click"
+                    style="@style/DTechButton.Accent"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="40dp"
+                    android:text="FORCE CLICK"
+                    android:visibility="gone" />
+
+                <Button
                     android:id="@+id/btn_stop_batch"
                     style="@style/DTechButton.Alert"
                     android:layout_width="0dp"

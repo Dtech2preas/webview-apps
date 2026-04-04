@@ -129,8 +129,46 @@
         console.log("Recorded: ", JSON.stringify(event));
     }
 
+    // Force Click Mode Logic
+    window.enableForceClickMode = function() {
+        window.forceClickModeActive = true;
+        // Optionally add an overlay to capture the click visually, but listening globally works.
+    };
+
     // CLICK
     document.addEventListener('click', function(e) {
+        if (window.forceClickModeActive) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            var extra = {
+                x: e.pageX,
+                y: e.pageY,
+                clientX: e.clientX,
+                clientY: e.clientY
+            };
+
+            // Record a special force click event using coordinates only
+            var event = {
+                type: 'force_coordinate_click',
+                time: Date.now() - window.recordingStartTime,
+                url: window.location.href,
+                x: e.pageX,
+                y: e.pageY,
+                clientX: e.clientX,
+                clientY: e.clientY
+            };
+
+            if (window.Android && window.Android.recordEvent) {
+                window.Android.recordEvent(JSON.stringify(event));
+            }
+            console.log("Recorded Force Coordinate Click: ", JSON.stringify(event));
+
+            // Disable force click mode after one use
+            window.forceClickModeActive = false;
+            return;
+        }
+
         // Check if selection mode is active
         if (window.selectionModeActive) {
             e.preventDefault();
