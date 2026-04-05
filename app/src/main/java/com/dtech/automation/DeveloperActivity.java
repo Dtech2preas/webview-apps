@@ -1,6 +1,9 @@
 package com.dtech.automation;
 
 import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Environment;
@@ -86,14 +89,11 @@ public class DeveloperActivity extends Activity {
     private void exportRawJson(ServiceRepository.ServiceData service) {
         try {
             String json = service.toJson().toString(4);
-            File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-            File exportFile = new File(downloadsDir, service.getName().replaceAll("[^a-zA-Z0-9_-]", "") + "_raw.json");
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipData clip = ClipData.newPlainText("Raw JSON", json);
+            clipboard.setPrimaryClip(clip);
 
-            FileOutputStream fos = new FileOutputStream(exportFile);
-            fos.write(json.getBytes());
-            fos.close();
-
-            Toast.makeText(this, "Exported to Downloads: " + exportFile.getName(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Copied raw JSON to clipboard", Toast.LENGTH_LONG).show();
         } catch (Exception e) {
             e.printStackTrace();
             Toast.makeText(this, "Export failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();

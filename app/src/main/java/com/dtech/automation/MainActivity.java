@@ -87,6 +87,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     // Buttons in Floating Menu
     private Button btnRecordStep1, btnRecordStep2;
     private Button btnPlaySingle, btnExecuteBatch, btnStopBatch, btnCancelRecording, btnForceClick;
+    private Button btnForceClickArea;
     private Button btnSelectService, btnSessionResults, btnCredentials;
 
     // Draggable Logic
@@ -338,6 +339,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         btnStopBatch = overlayView.findViewById(R.id.btn_stop_batch);
         btnCancelRecording = overlayView.findViewById(R.id.btn_cancel_recording);
         btnForceClick = overlayView.findViewById(R.id.btn_force_click);
+        btnForceClickArea = overlayView.findViewById(R.id.btn_force_click_area);
 
         // Setup Console Log
         consoleAdapter = new ConsoleLogAdapter();
@@ -387,6 +389,13 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
             performHapticFeedback();
             mWebView.evaluateJavascript("javascript:window.enableForceClickMode();", null);
             Toast.makeText(this, "Tap the screen to record a Force Click.", Toast.LENGTH_SHORT).show();
+        });
+
+        btnForceClickArea.setOnClickListener(v -> {
+            performHapticFeedback();
+            // Start force click area selection mode in javascript
+            mWebView.evaluateJavascript("javascript:window.enableForceAreaSelectionMode();", null);
+            Toast.makeText(this, "Tap the screen to designate a Force Click Area.", Toast.LENGTH_SHORT).show();
         });
 
         updateTerminal("System Ready.");
@@ -762,6 +771,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                     btnStopBatch.setOnClickListener(v -> stopRecording());
                     btnCancelRecording.setVisibility(View.VISIBLE);
                     btnForceClick.setVisibility(View.VISIBLE);
+                    if (btnForceClickArea != null) btnForceClickArea.setVisibility(View.VISIBLE);
 
                     android.webkit.CookieManager.getInstance().removeAllCookies(null);
                     mWebView.loadUrl(recordingStartUrl);
@@ -1080,6 +1090,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                 btnStopBatch.setOnClickListener(v -> stopRecording());
                 btnCancelRecording.setVisibility(View.VISIBLE);
                 btnForceClick.setVisibility(View.VISIBLE);
+                if (btnForceClickArea != null) btnForceClickArea.setVisibility(View.VISIBLE);
 
                 mWebView.loadUrl(recordingStartUrl);
             })
@@ -1154,6 +1165,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         btnStopBatch.setOnClickListener(v -> stopBatch());
         btnCancelRecording.setVisibility(View.GONE);
         btnForceClick.setVisibility(View.GONE);
+        if (btnForceClickArea != null) btnForceClickArea.setVisibility(View.GONE);
     }
 
     private void openScannerOverlay() {
@@ -1202,6 +1214,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                 btnStopBatch.setOnClickListener(v -> stopRecording());
                 btnCancelRecording.setVisibility(View.VISIBLE);
                 btnForceClick.setVisibility(View.VISIBLE);
+                if (btnForceClickArea != null) btnForceClickArea.setVisibility(View.VISIBLE);
 
                  android.webkit.CookieManager.getInstance().removeAllCookies(null);
                  android.webkit.WebStorage.getInstance().deleteAllData();
