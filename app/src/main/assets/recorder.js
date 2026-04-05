@@ -135,6 +135,161 @@
         // Optionally add an overlay to capture the click visually, but listening globally works.
     };
 
+    // Force Area Selection Mode Logic
+    var drawBoxOverlay = null;
+    var drawBoxRect = null;
+    var isDrawingBox = false;
+    var startBoxX = 0, startBoxY = 0;
+
+    window.enableForceAreaSelectionMode = function() {
+        window.forceAreaSelectionModeActive = true;
+        // Re-use highlight styles
+        window.enableSelectionModeStylesOnly();
+
+        // Add a full screen transparent overlay for drawing
+        if (!drawBoxOverlay) {
+            drawBoxOverlay = document.createElement('div');
+            drawBoxOverlay.style.position = 'fixed';
+            drawBoxOverlay.style.top = '0';
+            drawBoxOverlay.style.left = '0';
+            drawBoxOverlay.style.width = '100vw';
+            drawBoxOverlay.style.height = '100vh';
+            drawBoxOverlay.style.zIndex = '999999';
+            drawBoxOverlay.style.cursor = 'crosshair';
+            // Allow pointer events so we can catch drags, but also allow clicks to fall through?
+            // Actually, we need pointer-events: auto to catch mousedown.
+            // But we also want to allow element selection.
+            // Let's not use an overlay, let's just listen to document mousedown/mousemove/mouseup.
+            // Since we can't easily capture both without blocking, let's just listen on document globally.
+        }
+    };
+
+    function disableForceAreaSelectionMode() {
+        window.forceAreaSelectionModeActive = false;
+        disableSelectionModeStylesOnly();
+        if (drawBoxRect && drawBoxRect.parentNode) {
+            drawBoxRect.parentNode.removeChild(drawBoxRect);
+        }
+        drawBoxRect = null;
+    }
+
+    // Handle Drag Drawing Box
+    document.addEventListener('mousedown', function(e) {
+        if (!window.forceAreaSelectionModeActive) return;
+        isDrawingBox = true;
+        startBoxX = e.clientX;
+        startBoxY = e.clientY;
+
+        if (!drawBoxRect) {
+            drawBoxRect = document.createElement('div');
+            drawBoxRect.style.position = 'fixed';
+            drawBoxRect.style.border = '2px dashed #00E5FF';
+            drawBoxRect.style.backgroundColor = 'rgba(0, 229, 255, 0.2)';
+            drawBoxRect.style.zIndex = '999999';
+            drawBoxRect.style.pointerEvents = 'none'; // let mouse events pass through
+            document.body.appendChild(drawBoxRect);
+        }
+        drawBoxRect.style.left = startBoxX + 'px';
+        drawBoxRect.style.top = startBoxY + 'px';
+        drawBoxRect.style.width = '0px';
+        drawBoxRect.style.height = '0px';
+    }, true);
+
+    document.addEventListener('mousemove', function(e) {
+        if (!isDrawingBox) return;
+        var currentX = e.clientX;
+        var currentY = e.clientY;
+
+        var left = Math.min(startBoxX, currentX);
+        var top = Math.min(startBoxY, currentY);
+        var width = Math.abs(currentX - startBoxX);
+        var height = Math.abs(currentY - startBoxY);
+
+        if (drawBoxRect) {
+            drawBoxRect.style.left = left + 'px';
+            drawBoxRect.style.top = top + 'px';
+            drawBoxRect.style.width = width + 'px';
+            drawBoxRect.style.height = height + 'px';
+        }
+    }, true);
+
+    document.addEventListener('mouseup', function(e) {
+        if (!isDrawingBox || !window.forceAreaSelectionModeActive) return;
+        isDrawingBox = false;
+
+        var endX = e.clientX;
+        var endY = e.clientY;
+
+        var width = Math.abs(endX - startBoxX);
+        var height = Math.abs(endY - startBoxY);
+
+        // If the user actually dragged a box (e.g. > 10x10 pixels), use that as the area.
+        // Otherwise, let the click handler use the DOM element.
+        if (width > 10 && height > 10) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            var rect = {
+                left: Math.min(startBoxX, endX) + window.scrollX,
+                top: Math.min(startBoxY, endY) + window.scrollY,
+                width: width,
+                height: height
+            };
+
+            var event = {
+                type: 'force_click_area',
+                selector: 'drawn_box',
+                time: Date.now() - window.recordingStartTime,
+                url: window.location.href,
+                rect: rect
+            };
+
+            if (window.Android && window.Android.recordEvent) {
+                window.Android.recordEvent(JSON.stringify(event));
+            }
+            console.log("Recorded Force Click Area (Drawn Box): ", JSON.stringify(event));
+
+            disableForceAreaSelectionMode();
+
+            // Prevent the subsequent click event from firing by temporarily capturing it
+            var captureClick = function(ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                document.removeEventListener('click', captureClick, true);
+            };
+            document.addEventListener('click', captureClick, true);
+            setTimeout(function() { document.removeEventListener('click', captureClick, true); }, 100);
+        } else {
+            // It was just a click, cleanup the box and let the click handler handle the DOM element
+            if (drawBoxRect && drawBoxRect.parentNode) {
+                drawBoxRect.parentNode.removeChild(drawBoxRect);
+            }
+            drawBoxRect = null;
+        }
+    }, true);
+
+    window.enableSelectionModeStylesOnly = function() {
+        if (!styleElement) {
+            styleElement = document.createElement('style');
+            styleElement.innerHTML = `
+                * { cursor: crosshair !important; }
+                .dtech-highlight { outline: 2px solid #ff0000 !important; background-color: rgba(255, 0, 0, 0.1) !important; }
+            `;
+            document.head.appendChild(styleElement);
+            document.addEventListener('mouseover', onMouseOver, true);
+            document.addEventListener('mouseout', onMouseOut, true);
+        }
+    };
+
+    function disableSelectionModeStylesOnly() {
+        if (styleElement) {
+            document.head.removeChild(styleElement);
+            styleElement = null;
+        }
+        document.removeEventListener('mouseover', onMouseOver, true);
+        document.removeEventListener('mouseout', onMouseOut, true);
+    }
+
     // CLICK
     document.addEventListener('click', function(e) {
         if (window.forceClickModeActive) {
@@ -166,6 +321,42 @@
 
             // Disable force click mode after one use
             window.forceClickModeActive = false;
+            return;
+        }
+
+        // Check if Force Area Selection mode is active (for single clicks / DOM elements)
+        if (window.forceAreaSelectionModeActive) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            var rect = e.target.getBoundingClientRect();
+            var extra = {
+                x: e.pageX,
+                y: e.pageY,
+                clientX: e.clientX,
+                clientY: e.clientY,
+                rect: {
+                    top: rect.top + window.scrollY,
+                    left: rect.left + window.scrollX,
+                    width: rect.width,
+                    height: rect.height
+                }
+            };
+
+            var event = {
+                type: 'force_click_area',
+                selector: getSelector(e.target),
+                time: Date.now() - window.recordingStartTime,
+                url: window.location.href,
+                rect: extra.rect
+            };
+
+            if (window.Android && window.Android.recordEvent) {
+                window.Android.recordEvent(JSON.stringify(event));
+            }
+            console.log("Recorded Force Click Area (Element): ", JSON.stringify(event));
+
+            disableForceAreaSelectionMode();
             return;
         }
 
@@ -238,39 +429,23 @@
 
     window.enableSelectionMode = function() {
         window.selectionModeActive = true;
-
-        // Add highlight styles
-        styleElement = document.createElement('style');
-        styleElement.innerHTML = `
-            * { cursor: crosshair !important; }
-            .dtech-highlight { outline: 2px solid #ff0000 !important; background-color: rgba(255, 0, 0, 0.1) !important; }
-        `;
-        document.head.appendChild(styleElement);
-
-        document.addEventListener('mouseover', onMouseOver, true);
-        document.addEventListener('mouseout', onMouseOut, true);
-
+        window.enableSelectionModeStylesOnly();
         console.log("Selection Mode Enabled");
     };
 
     function disableSelectionMode() {
         window.selectionModeActive = false;
-        if (styleElement) {
-            document.head.removeChild(styleElement);
-            styleElement = null;
-        }
-        document.removeEventListener('mouseover', onMouseOver, true);
-        document.removeEventListener('mouseout', onMouseOut, true);
+        disableSelectionModeStylesOnly();
         console.log("Selection Mode Disabled");
     }
 
     function onMouseOver(e) {
-        if (!window.selectionModeActive) return;
+        if (!window.selectionModeActive && !window.forceAreaSelectionModeActive) return;
         e.target.classList.add('dtech-highlight');
     }
 
     function onMouseOut(e) {
-        if (!window.selectionModeActive) return;
+        if (!window.selectionModeActive && !window.forceAreaSelectionModeActive) return;
         e.target.classList.remove('dtech-highlight');
     }
 

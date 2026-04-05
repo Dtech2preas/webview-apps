@@ -252,6 +252,98 @@
         // Wait for Page Load before anything
         waitForPageLoad().then(function() {
 
+            // Force Click Area Logic
+            if (event.type === 'force_click_area') {
+                console.log("Force Click Area Mode: Processing...");
+                var attempt = 0;
+                var maxAttempts = 30; // 30 seconds max
+                var intervalMs = 1000;
+                var initialText = document.body.innerText;
+
+                function doAreaClick() {
+                    if (attempt >= maxAttempts) {
+                        console.error("Force Click Area timeout - no change detected after 30 seconds");
+                        // Move on or fail? The requirement says "timeout (e.g., skip or fail the action after 30 seconds)"
+                        // Let's just proceed to the next event
+                        if (window.Android && window.Android.eventExecuted) window.Android.eventExecuted(index);
+                        setTimeout(function() { processNextEvent(index + 1); }, 100);
+                        return;
+                    }
+
+                    var rect = event.rect;
+                    if (!rect) {
+                        console.error("Force Click Area missing rect");
+                        if (window.Android && window.Android.eventExecuted) window.Android.eventExecuted(index);
+                        setTimeout(function() { processNextEvent(index + 1); }, 100);
+                        return;
+                    }
+
+                    // Calculate Coordinates (Absolute Page Coordinates)
+                    var targetX, targetY;
+                    if (attempt === 0) {
+                        // First attempt: exact center
+                        targetX = rect.left + (rect.width / 2);
+                        targetY = rect.top + (rect.height / 2);
+                    } else {
+                        // Subsequent attempts: random inside rect
+                        targetX = rect.left + (Math.random() * rect.width);
+                        targetY = rect.top + (Math.random() * rect.height);
+                    }
+
+                    // Scroll to target
+                    var scrollX = targetX - (window.innerWidth / 2);
+                    var scrollY = targetY - (window.innerHeight / 2);
+                    window.scrollTo(scrollX, scrollY);
+
+                    setTimeout(function() {
+                        // Calculate Client Coordinates (Viewport relative)
+                        var clientX = targetX - window.pageXOffset;
+                        var clientY = targetY - window.pageYOffset;
+
+                        var clickEvent = new MouseEvent('click', {
+                            view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+                        });
+                        var pointerDown = new PointerEvent('pointerdown', {
+                            view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+                        });
+                        var mouseDown = new MouseEvent('mousedown', {
+                            view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+                        });
+                        var pointerUp = new PointerEvent('pointerup', {
+                            view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+                        });
+                        var mouseUp = new MouseEvent('mouseup', {
+                            view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+                        });
+
+                        var el = document.elementFromPoint(clientX, clientY) || document.body;
+                        try { el.focus(); } catch(e) {}
+                        el.dispatchEvent(pointerDown);
+                        el.dispatchEvent(mouseDown);
+                        el.dispatchEvent(pointerUp);
+                        el.dispatchEvent(mouseUp);
+                        el.dispatchEvent(clickEvent);
+
+                        console.log("Clicked Area at (" + clientX + ", " + clientY + ")");
+
+                        setTimeout(function() {
+                            var currentText = document.body.innerText;
+                            if (currentText !== initialText) {
+                                console.log("UI change detected! Force Click Area successful.");
+                                if (window.Android && window.Android.eventExecuted) window.Android.eventExecuted(index);
+                                setTimeout(function() { processNextEvent(index + 1); }, 500);
+                            } else {
+                                attempt++;
+                                doAreaClick();
+                            }
+                        }, intervalMs);
+                    }, 300);
+                }
+
+                doAreaClick();
+                return;
+            }
+
             // Force Coordinate Click Logic (Blindly click coordinates)
             if (event.type === 'force_coordinate_click') {
                 console.log("Force Coordinate Click Mode: Clicking at " + event.x + ", " + event.y);
@@ -261,41 +353,54 @@
                 var targetY = event.y - (window.innerHeight / 2);
                 window.scrollTo(targetX, targetY);
 
-                // Wait for scroll
+                // Wait for scroll and elements to settle
+                // Adding a 2-second static delay to ensure any dynamic rendering is finished
                 setTimeout(function() {
                      // Calculate Client Coordinates (Viewport relative)
                      var clientX = event.x - window.pageXOffset;
                      var clientY = event.y - window.pageYOffset;
 
-                     // Dispatch click blindly
-                     var clickEvent = new MouseEvent('click', {
-                         view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
-                     });
-                     var pointerDown = new PointerEvent('pointerdown', {
-                         view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
-                     });
-                     var mouseDown = new MouseEvent('mousedown', {
-                         view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
-                     });
-                     var pointerUp = new PointerEvent('pointerup', {
-                         view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
-                     });
-                     var mouseUp = new MouseEvent('mouseup', {
-                         view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
-                     });
+                     // Wait for an element to actually be present at these coordinates before clicking
+                     var pollAttempts = 0;
+                     var pollInterval = setInterval(function() {
+                         var el = document.elementFromPoint(clientX, clientY);
 
-                     var el = document.elementFromPoint(clientX, clientY) || document.body;
+                         // Check if it's not just the body, or if we've waited long enough (10s max)
+                         if ((el && el !== document.body) || pollAttempts >= 20) {
+                             clearInterval(pollInterval);
 
-                     try { el.focus(); } catch(e) {}
-                     el.dispatchEvent(pointerDown);
-                     el.dispatchEvent(mouseDown);
-                     el.dispatchEvent(pointerUp);
-                     el.dispatchEvent(mouseUp);
-                     el.dispatchEvent(clickEvent);
+                             if (!el) el = document.body;
 
-                     if (window.Android && window.Android.eventExecuted) window.Android.eventExecuted(index);
-                     setTimeout(function() { processNextEvent(index + 1); }, 500);
-                }, 300);
+                             // Dispatch click blindly
+                             var clickEvent = new MouseEvent('click', {
+                                 view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+                             });
+                             var pointerDown = new PointerEvent('pointerdown', {
+                                 view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+                             });
+                             var mouseDown = new MouseEvent('mousedown', {
+                                 view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+                             });
+                             var pointerUp = new PointerEvent('pointerup', {
+                                 view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+                             });
+                             var mouseUp = new MouseEvent('mouseup', {
+                                 view: window, bubbles: true, cancelable: true, clientX: clientX, clientY: clientY
+                             });
+
+                             try { el.focus(); } catch(e) {}
+                             el.dispatchEvent(pointerDown);
+                             el.dispatchEvent(mouseDown);
+                             el.dispatchEvent(pointerUp);
+                             el.dispatchEvent(mouseUp);
+                             el.dispatchEvent(clickEvent);
+
+                             if (window.Android && window.Android.eventExecuted) window.Android.eventExecuted(index);
+                             setTimeout(function() { processNextEvent(index + 1); }, 500);
+                         }
+                         pollAttempts++;
+                     }, 500);
+                }, 2000); // 2000ms static delay to ensure rendering
 
                 return;
             }
