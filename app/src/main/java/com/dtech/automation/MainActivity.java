@@ -79,6 +79,10 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
 
     // --- Visual Status Indicator ---
     private FrameLayout visualStatusIndicator;
+    private LinearLayout visualRecordingOverlay;
+    private TextView visualStatusText;
+    private android.widget.ImageView visualFlashOverlay;
+    private android.widget.ImageView visualMappingBoxes;
 
     // --- Floating Overlay UI ---
     private FrameLayout overlayRoot;
@@ -279,6 +283,10 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         mWebView = findViewById(R.id.activity_main_webview);
         overlayStealth = findViewById(R.id.overlay_stealth);
         visualStatusIndicator = findViewById(R.id.visual_status_indicator);
+        visualRecordingOverlay = findViewById(R.id.visual_recording_overlay);
+        visualStatusText = findViewById(R.id.visual_status_text);
+        visualFlashOverlay = findViewById(R.id.visual_flash_overlay);
+        visualMappingBoxes = findViewById(R.id.visual_mapping_boxes);
 
         // Setup Stealth Mode Double Tap
         GestureDetector gd = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
@@ -1125,15 +1133,24 @@ private void setupWebView() {
 
     private void performVisualMapping() {
         runOnUiThread(() -> {
-            visualStatusIndicator.setVisibility(View.VISIBLE);
+            visualRecordingOverlay.setVisibility(View.VISIBLE);
             visualStatusIndicator.setBackgroundResource(R.drawable.circle_yellow);
+            visualStatusText.setText("Capturing Screen...");
 
             // Allow page to settle
             new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 try {
+                    // Flash screen effect
+                    visualFlashOverlay.setBackgroundColor(Color.WHITE);
+                    visualFlashOverlay.setVisibility(View.VISIBLE);
+                    visualFlashOverlay.setAlpha(0.8f);
+                    visualFlashOverlay.animate().alpha(0f).setDuration(300).withEndAction(() -> visualFlashOverlay.setVisibility(View.GONE)).start();
+
                     android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(mWebView.getWidth(), mWebView.getHeight(), android.graphics.Bitmap.Config.ARGB_8888);
                     android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
                     mWebView.draw(canvas);
+
+                    visualStatusText.setText("Mapping Screen...");
 
                     InputImage image = InputImage.fromBitmap(bitmap, 0);
                     TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -1142,14 +1159,33 @@ private void setupWebView() {
                             mappedTextBlocks = visionText.getTextBlocks();
                             isMappingComplete = true;
                             visualStatusIndicator.setBackgroundResource(R.drawable.circle_green);
+                            visualStatusText.setText("Ready: Tap Email Field");
+
+                            // Draw bounding boxes
+                            android.graphics.Bitmap boxBitmap = android.graphics.Bitmap.createBitmap(mWebView.getWidth(), mWebView.getHeight(), android.graphics.Bitmap.Config.ARGB_8888);
+                            android.graphics.Canvas boxCanvas = new android.graphics.Canvas(boxBitmap);
+                            android.graphics.Paint paint = new android.graphics.Paint();
+                            paint.setColor(Color.GREEN);
+                            paint.setStyle(android.graphics.Paint.Style.STROKE);
+                            paint.setStrokeWidth(3f);
+                            for (com.google.mlkit.vision.text.Text.TextBlock block : mappedTextBlocks) {
+                                if (block.getBoundingBox() != null) {
+                                    boxCanvas.drawRect(block.getBoundingBox(), paint);
+                                }
+                            }
+                            visualMappingBoxes.setImageBitmap(boxBitmap);
+                            visualMappingBoxes.setVisibility(View.VISIBLE);
+
                             Toast.makeText(this, "Visual Mapping Complete. Tap the Email field.", Toast.LENGTH_SHORT).show();
                         })
                         .addOnFailureListener(e -> {
+                            visualStatusText.setText("Mapping Failed.");
                             Toast.makeText(this, "Visual Mapping Failed. Cannot record.", Toast.LENGTH_SHORT).show();
                             cancelRecording();
                         });
                 } catch (Exception e) {
                     Log.e(TAG, "Mapping Snapshot Failed", e);
+                    visualStatusText.setText("Mapping Error.");
                 }
             }, 2000);
         });
@@ -1196,18 +1232,29 @@ private void setupWebView() {
 
                     currentSessionEvents.add(action);
 
+                    // Flash screen green on tap
+                    runOnUiThread(() -> {
+                        visualFlashOverlay.setBackgroundColor(Color.GREEN);
+                        visualFlashOverlay.setVisibility(View.VISIBLE);
+                        visualFlashOverlay.setAlpha(0.6f);
+                        visualFlashOverlay.animate().alpha(0f).setDuration(200).withEndAction(() -> visualFlashOverlay.setVisibility(View.GONE)).start();
+                    });
+
                     String actionName = "";
                     if (visualRecordingStep == 0) {
                         actionName = "Email Field";
                         visualRecordingStep++;
+                        runOnUiThread(() -> visualStatusText.setText("Ready: Tap Password Field"));
                         Toast.makeText(this, actionName + " recorded. Tap Password field.", Toast.LENGTH_SHORT).show();
                     } else if (visualRecordingStep == 1) {
                         actionName = "Password Field";
                         visualRecordingStep++;
+                        runOnUiThread(() -> visualStatusText.setText("Ready: Tap Login Button"));
                         Toast.makeText(this, actionName + " recorded. Tap Login button.", Toast.LENGTH_SHORT).show();
                     } else if (visualRecordingStep == 2) {
                         actionName = "Login Button";
                         visualRecordingStep++;
+                        runOnUiThread(() -> visualStatusText.setText("Done: Click STOP RECORDING"));
                         Toast.makeText(this, actionName + " recorded. Click STOP to finish.", Toast.LENGTH_SHORT).show();
                         // Automatically stop after login button click
                         stopRecording();
@@ -1391,7 +1438,8 @@ private void setupWebView() {
 
         // Reset UI
         resetOverlayButtons();
-        visualStatusIndicator.setVisibility(View.GONE);
+        visualRecordingOverlay.setVisibility(View.GONE);
+        visualMappingBoxes.setVisibility(View.GONE);
 
         // Inform JS to stop recording
         mWebView.evaluateJavascript("javascript:window.isRecording = false;", null);
@@ -1403,11 +1451,13 @@ private void setupWebView() {
         if (recordingMode == RECORD_MODE_NONE) return;
 
         // Hide visual indicator
-        visualStatusIndicator.setVisibility(View.GONE);
+        visualRecordingOverlay.setVisibility(View.GONE);
+        visualMappingBoxes.setVisibility(View.GONE);
 
         if (recordingMode == RECORD_MODE_DUMMY) {
             JSONArray arr = new JSONArray(currentSessionEvents);
             currentService.setScriptJson(arr.toString());
+            currentService.setVisual(true);
             currentService.setSuccessUrl("");
             currentService.setSuccessSelector(null);
             currentService.setSuccessKeywords(new ArrayList<>());

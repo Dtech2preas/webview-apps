@@ -156,6 +156,7 @@ private void loadServices() {
         private String scriptJson; // Stored as string to avoid repeated parsing
         private String userAgent;
         private boolean useOcrForSuccess = false;
+        private boolean isVisual = false;
 
         // OCR Validation Fields
         private String successOcrText;
@@ -184,6 +185,7 @@ private void loadServices() {
             obj.put("scriptJson", scriptJson);
             obj.put("userAgent", userAgent);
             obj.put("useOcrForSuccess", useOcrForSuccess);
+            obj.put("isVisual", isVisual);
 
             if (successOcrText != null) {
                 obj.put("successOcrText", successOcrText);
@@ -221,6 +223,7 @@ private void loadServices() {
             if (obj.has("scriptJson")) s.scriptJson = obj.getString("scriptJson");
             if (obj.has("userAgent")) s.userAgent = obj.getString("userAgent");
             if (obj.has("useOcrForSuccess")) s.useOcrForSuccess = obj.getBoolean("useOcrForSuccess");
+            if (obj.has("isVisual")) s.isVisual = obj.getBoolean("isVisual");
 
             if (obj.has("successOcrText")) {
                 s.successOcrText = obj.getString("successOcrText");
@@ -279,6 +282,9 @@ private void loadServices() {
 
         public boolean isUseOcrForSuccess() { return useOcrForSuccess; }
         public void setUseOcrForSuccess(boolean useOcr) { this.useOcrForSuccess = useOcr; }
+
+        public boolean isVisual() { return isVisual; }
+        public void setVisual(boolean visual) { this.isVisual = visual; }
 
         public String getSuccessOcrText() { return successOcrText; }
         public void setSuccessOcrText(String text) { this.successOcrText = text; }
