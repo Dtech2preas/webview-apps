@@ -260,19 +260,44 @@
                 var intervalMs = 1000;
                 var initialText = document.body.innerText;
 
+                var rect = event.rect;
+                if (!rect) {
+                    console.error("Force Click Area missing rect");
+                    if (window.Android && window.Android.eventExecuted) window.Android.eventExecuted(index);
+                    setTimeout(function() { processNextEvent(index + 1); }, 100);
+                    return;
+                }
+
+                // Create and display the visual box overlay
+                var visualBox = document.createElement('div');
+                visualBox.style.position = 'absolute';
+                visualBox.style.left = rect.left + 'px';
+                visualBox.style.top = rect.top + 'px';
+                visualBox.style.width = rect.width + 'px';
+                visualBox.style.height = rect.height + 'px';
+                visualBox.style.border = '3px solid #ff0000';
+                visualBox.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
+                visualBox.style.zIndex = '999998';
+                visualBox.style.pointerEvents = 'none'; // So clicks pass through to the actual page
+                document.body.appendChild(visualBox);
+
+                var visualDots = []; // keep track of all dots drawn
+
+                function cleanupVisuals() {
+                    if (visualBox && visualBox.parentNode) {
+                        visualBox.parentNode.removeChild(visualBox);
+                    }
+                    for (var i = 0; i < visualDots.length; i++) {
+                        if (visualDots[i] && visualDots[i].parentNode) {
+                            visualDots[i].parentNode.removeChild(visualDots[i]);
+                        }
+                    }
+                }
+
                 function doAreaClick() {
                     if (attempt >= maxAttempts) {
                         console.error("Force Click Area timeout - no change detected after 30 seconds");
-                        // Move on or fail? The requirement says "timeout (e.g., skip or fail the action after 30 seconds)"
-                        // Let's just proceed to the next event
-                        if (window.Android && window.Android.eventExecuted) window.Android.eventExecuted(index);
-                        setTimeout(function() { processNextEvent(index + 1); }, 100);
-                        return;
-                    }
-
-                    var rect = event.rect;
-                    if (!rect) {
-                        console.error("Force Click Area missing rect");
+                        cleanupVisuals();
                         if (window.Android && window.Android.eventExecuted) window.Android.eventExecuted(index);
                         setTimeout(function() { processNextEvent(index + 1); }, 100);
                         return;
@@ -296,6 +321,20 @@
                     window.scrollTo(scrollX, scrollY);
 
                     setTimeout(function() {
+                        // Create visual dot indicator
+                        var dot = document.createElement('div');
+                        dot.style.position = 'absolute';
+                        dot.style.left = (targetX - 5) + 'px'; // Center dot
+                        dot.style.top = (targetY - 5) + 'px';
+                        dot.style.width = '10px';
+                        dot.style.height = '10px';
+                        dot.style.backgroundColor = '#ff0000';
+                        dot.style.borderRadius = '50%';
+                        dot.style.zIndex = '999999';
+                        dot.style.pointerEvents = 'none';
+                        document.body.appendChild(dot);
+                        visualDots.push(dot);
+
                         // Calculate Client Coordinates (Viewport relative)
                         var clientX = targetX - window.pageXOffset;
                         var clientY = targetY - window.pageYOffset;
@@ -330,6 +369,7 @@
                             var currentText = document.body.innerText;
                             if (currentText !== initialText) {
                                 console.log("UI change detected! Force Click Area successful.");
+                                cleanupVisuals();
                                 if (window.Android && window.Android.eventExecuted) window.Android.eventExecuted(index);
                                 setTimeout(function() { processNextEvent(index + 1); }, 500);
                             } else {
