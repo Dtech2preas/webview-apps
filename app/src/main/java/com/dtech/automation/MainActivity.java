@@ -1002,9 +1002,32 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         }
     }
 
-    private void setupWebView() {
+
+    private void clearCookiesAndCache() {
+        mWebView.clearCache(true);
+        mWebView.clearHistory();
+        mWebView.clearFormData();
+
+        android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
+        cookieManager.removeAllCookies(null);
+        cookieManager.flush();
+
+        android.webkit.WebStorage.getInstance().deleteAllData();
+    }
+private void setupWebView() {
         applyProxySettings();
         WebSettings webSettings = mWebView.getSettings();
+
+        // AI Stealth Enhancements
+        webSettings.setDomStorageEnabled(true);
+        webSettings.setDatabaseEnabled(true);
+        webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        webSettings.setMediaPlaybackRequiresUserGesture(false);
+        webSettings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        // Randomize User Agent slightly to bypass generic bot filters
+        String defaultAgent = WebSettings.getDefaultUserAgent(this);
+        webSettings.setUserAgentString(defaultAgent + " (Mobile; D-Tech; rv:109.0) Gecko/109.0");
+
         webSettings.setJavaScriptEnabled(true);
         webSettings.setAllowFileAccess(true);
         webSettings.setAllowContentAccess(true);
@@ -1044,8 +1067,23 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return false; }
 
+
             @Override
-            public void onPageFinished(WebView view, String url) {
+            public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                super.onPageStarted(view, url, favicon);
+                try {
+                    java.io.InputStream is = getAssets().open("antibot.js");
+                    int size = is.available();
+                    byte[] buffer = new byte[size];
+                    is.read(buffer);
+                    is.close();
+                    String script = new String(buffer, "UTF-8");
+                    view.evaluateJavascript(script, null);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
 
                 if (isWaitingForNext) return;
