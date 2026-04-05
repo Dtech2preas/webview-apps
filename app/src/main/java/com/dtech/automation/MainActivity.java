@@ -1019,10 +1019,7 @@ private void setupWebView() {
         WebSettings webSettings = mWebView.getSettings();
 
         mWebView.setOnTouchListener((v, event) -> {
-            if (recordingMode == RECORD_MODE_SUCCESS && isVisualMappingReady && event.getAction() == MotionEvent.ACTION_UP) {
-                handleVisualRecordingTap((int)event.getX(), (int)event.getY());
-                return true; // Consume event
-            }
+
             return false;
         });
 
@@ -1674,13 +1671,7 @@ private void setupWebView() {
 
         updateTerminal("Processing: " + currentPair.split(":")[0]);
 
-        String[] parts = currentPair.split(":", 2);
-        currentBatchEmail = parts[0].trim();
-        if (parts.length > 1) {
-             currentBatchPassword = parts[1].trim();
-        } else {
-             currentBatchPassword = "";
-        }
+
 
         final int targetIndex = currentCredentialIndex;
 
@@ -1693,25 +1684,12 @@ private void setupWebView() {
                  isWaitingForNext = false;
                  isReplaying = true;
 
-                 // Load visual script
-                 pendingVisualActions.clear();
-                 currentVisualActionIndex = 0;
-                 try {
-                     JSONArray script = new JSONArray(currentService.getScriptJson());
-                     for (int i = 0; i < script.length(); i++) {
-                         pendingVisualActions.add(VisualAction.fromJson(script.getJSONObject(i)));
-                     }
-                     if (pendingVisualActions.isEmpty()) {
-                         updateTerminal("Warning: No visual actions found in script.");
-                     }
-                 } catch (Exception e) {
-                      updateTerminal("Error loading visual script: " + e.getMessage());
-                 }
+
 
                  mWebView.loadUrl(currentService.getLoginUrl());
 
                  // Start visual action chain and start success checks
-                 mWebView.postDelayed(this::executeVisualAction, 3000);
+
                  injectReplayer(); // starts the success verifier loop
 
             }, 1000);
