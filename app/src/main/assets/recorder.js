@@ -136,137 +136,189 @@
     };
 
     // Force Area Selection Mode Logic
-    var drawBoxOverlay = null;
-    var drawBoxRect = null;
-    var isDrawingBox = false;
-    var startBoxX = 0, startBoxY = 0;
+    var editableBox = null;
+    var editableBoxContainer = null;
+    var controlsPanel = null;
+    var isDraggingBox = false;
+    var dragOffsetX = 0;
+    var dragOffsetY = 0;
+
+    function onBoxDragMove(e) {
+        if (!isDraggingBox) return;
+        var newLeft = e.pageX - dragOffsetX;
+        var newTop = e.pageY - dragOffsetY;
+        editableBoxContainer.style.left = newLeft + 'px';
+        editableBoxContainer.style.top = newTop + 'px';
+    }
+
+    function onBoxDragEnd(e) {
+        isDraggingBox = false;
+    }
 
     window.enableForceAreaSelectionMode = function() {
         window.forceAreaSelectionModeActive = true;
-        // Re-use highlight styles
-        window.enableSelectionModeStylesOnly();
+        // Don't show generic crosshair yet
+        disableSelectionModeStylesOnly();
 
-        // Add a full screen transparent overlay for drawing
-        if (!drawBoxOverlay) {
-            drawBoxOverlay = document.createElement('div');
-            drawBoxOverlay.style.position = 'fixed';
-            drawBoxOverlay.style.top = '0';
-            drawBoxOverlay.style.left = '0';
-            drawBoxOverlay.style.width = '100vw';
-            drawBoxOverlay.style.height = '100vh';
-            drawBoxOverlay.style.zIndex = '999999';
-            drawBoxOverlay.style.cursor = 'crosshair';
-            // Allow pointer events so we can catch drags, but also allow clicks to fall through?
-            // Actually, we need pointer-events: auto to catch mousedown.
-            // But we also want to allow element selection.
-            // Let's not use an overlay, let's just listen to document mousedown/mousemove/mouseup.
-            // Since we can't easily capture both without blocking, let's just listen on document globally.
+        // If we already have a box, just make sure it's visible. Otherwise create it.
+        if (!editableBoxContainer) {
+            createEditableBox();
+        } else {
+            editableBoxContainer.style.display = 'block';
         }
     };
 
-    function disableForceAreaSelectionMode() {
-        window.forceAreaSelectionModeActive = false;
-        disableSelectionModeStylesOnly();
-        if (drawBoxRect && drawBoxRect.parentNode) {
-            drawBoxRect.parentNode.removeChild(drawBoxRect);
-        }
-        drawBoxRect = null;
-    }
+    function createEditableBox() {
+        // Container that handles positioning
+        editableBoxContainer = document.createElement('div');
+        editableBoxContainer.style.position = 'absolute';
+        // Start in middle of screen
+        var startLeft = window.scrollX + (window.innerWidth / 4);
+        var startTop = window.scrollY + (window.innerHeight / 4);
+        editableBoxContainer.style.left = startLeft + 'px';
+        editableBoxContainer.style.top = startTop + 'px';
+        editableBoxContainer.style.zIndex = '999999';
+        editableBoxContainer.id = 'dtech-editable-box-container';
+        editableBoxContainer.style.pointerEvents = 'auto'; // allow interaction
 
-    // Handle Drag Drawing Box
-    document.addEventListener('mousedown', function(e) {
-        if (!window.forceAreaSelectionModeActive) return;
-        isDrawingBox = true;
-        startBoxX = e.clientX;
-        startBoxY = e.clientY;
+        // The actual resizable box
+        editableBox = document.createElement('div');
+        editableBox.style.width = '200px';
+        editableBox.style.height = '150px';
+        editableBox.style.border = '3px solid #00E5FF';
+        editableBox.style.backgroundColor = 'rgba(0, 229, 255, 0.2)';
+        editableBox.style.resize = 'both';
+        editableBox.style.overflow = 'hidden';
+        editableBox.style.position = 'relative';
+        editableBox.style.cursor = 'move';
+        editableBox.style.boxSizing = 'border-box';
 
-        if (!drawBoxRect) {
-            drawBoxRect = document.createElement('div');
-            drawBoxRect.style.position = 'fixed';
-            drawBoxRect.style.border = '2px dashed #00E5FF';
-            drawBoxRect.style.backgroundColor = 'rgba(0, 229, 255, 0.2)';
-            drawBoxRect.style.zIndex = '999999';
-            drawBoxRect.style.pointerEvents = 'none'; // let mouse events pass through
-            document.body.appendChild(drawBoxRect);
-        }
-        drawBoxRect.style.left = startBoxX + 'px';
-        drawBoxRect.style.top = startBoxY + 'px';
-        drawBoxRect.style.width = '0px';
-        drawBoxRect.style.height = '0px';
-    }, true);
+        // Add a small label
+        var label = document.createElement('div');
+        label.innerText = 'Drag to move, corner to resize';
+        label.style.position = 'absolute';
+        label.style.top = '5px';
+        label.style.left = '5px';
+        label.style.color = '#fff';
+        label.style.fontSize = '12px';
+        label.style.textShadow = '1px 1px 2px #000';
+        label.style.pointerEvents = 'none';
+        editableBox.appendChild(label);
 
-    document.addEventListener('mousemove', function(e) {
-        if (!isDrawingBox) return;
-        var currentX = e.clientX;
-        var currentY = e.clientY;
+        // Controls Panel (Confirm / Cancel)
+        controlsPanel = document.createElement('div');
+        controlsPanel.style.position = 'absolute';
+        controlsPanel.style.top = '-35px';
+        controlsPanel.style.right = '0px';
+        controlsPanel.style.display = 'flex';
+        controlsPanel.style.gap = '5px';
+        controlsPanel.style.pointerEvents = 'auto';
 
-        var left = Math.min(startBoxX, currentX);
-        var top = Math.min(startBoxY, currentY);
-        var width = Math.abs(currentX - startBoxX);
-        var height = Math.abs(currentY - startBoxY);
+        var btnConfirm = document.createElement('button');
+        btnConfirm.innerText = '✓ Confirm';
+        btnConfirm.style.backgroundColor = '#4CAF50';
+        btnConfirm.style.color = 'white';
+        btnConfirm.style.border = 'none';
+        btnConfirm.style.padding = '5px 10px';
+        btnConfirm.style.cursor = 'pointer';
+        btnConfirm.style.borderRadius = '3px';
+        btnConfirm.style.fontWeight = 'bold';
 
-        if (drawBoxRect) {
-            drawBoxRect.style.left = left + 'px';
-            drawBoxRect.style.top = top + 'px';
-            drawBoxRect.style.width = width + 'px';
-            drawBoxRect.style.height = height + 'px';
-        }
-    }, true);
+        var btnCancel = document.createElement('button');
+        btnCancel.innerText = '✗ Cancel';
+        btnCancel.style.backgroundColor = '#f44336';
+        btnCancel.style.color = 'white';
+        btnCancel.style.border = 'none';
+        btnCancel.style.padding = '5px 10px';
+        btnCancel.style.cursor = 'pointer';
+        btnCancel.style.borderRadius = '3px';
+        btnCancel.style.fontWeight = 'bold';
 
-    document.addEventListener('mouseup', function(e) {
-        if (!isDrawingBox || !window.forceAreaSelectionModeActive) return;
-        isDrawingBox = false;
-
-        var endX = e.clientX;
-        var endY = e.clientY;
-
-        var width = Math.abs(endX - startBoxX);
-        var height = Math.abs(endY - startBoxY);
-
-        // If the user actually dragged a box (e.g. > 10x10 pixels), use that as the area.
-        // Otherwise, let the click handler use the DOM element.
-        if (width > 10 && height > 10) {
+        btnConfirm.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
+            confirmForceClickArea();
+        }, true);
 
-            var rect = {
-                left: Math.min(startBoxX, endX) + window.scrollX,
-                top: Math.min(startBoxY, endY) + window.scrollY,
-                width: width,
-                height: height
-            };
+        btnConfirm.addEventListener('mousedown', function(e) { e.stopPropagation(); }, true);
+        btnConfirm.addEventListener('mouseup', function(e) { e.stopPropagation(); }, true);
 
-            var event = {
-                type: 'force_click_area',
-                selector: 'drawn_box',
-                time: Date.now() - window.recordingStartTime,
-                url: window.location.href,
-                rect: rect
-            };
-
-            if (window.Android && window.Android.recordEvent) {
-                window.Android.recordEvent(JSON.stringify(event));
-            }
-            console.log("Recorded Force Click Area (Drawn Box): ", JSON.stringify(event));
-
+        btnCancel.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
             disableForceAreaSelectionMode();
+        }, true);
 
-            // Prevent the subsequent click event from firing by temporarily capturing it
-            var captureClick = function(ev) {
-                ev.preventDefault();
-                ev.stopPropagation();
-                document.removeEventListener('click', captureClick, true);
-            };
-            document.addEventListener('click', captureClick, true);
-            setTimeout(function() { document.removeEventListener('click', captureClick, true); }, 100);
-        } else {
-            // It was just a click, cleanup the box and let the click handler handle the DOM element
-            if (drawBoxRect && drawBoxRect.parentNode) {
-                drawBoxRect.parentNode.removeChild(drawBoxRect);
+        btnCancel.addEventListener('mousedown', function(e) { e.stopPropagation(); }, true);
+        btnCancel.addEventListener('mouseup', function(e) { e.stopPropagation(); }, true);
+
+        controlsPanel.appendChild(btnConfirm);
+        controlsPanel.appendChild(btnCancel);
+
+        editableBoxContainer.appendChild(controlsPanel);
+        editableBoxContainer.appendChild(editableBox);
+        document.body.appendChild(editableBoxContainer);
+
+        // Dragging Logic
+        editableBox.addEventListener('mousedown', function(e) {
+            // If clicking the resize handle (bottom right corner), don't drag
+            var rect = editableBox.getBoundingClientRect();
+            if (e.clientX > rect.right - 20 && e.clientY > rect.bottom - 20) {
+                return; // Let native CSS resize handle it
             }
-            drawBoxRect = null;
+
+            isDraggingBox = true;
+            dragOffsetX = e.pageX - editableBoxContainer.offsetLeft;
+            dragOffsetY = e.pageY - editableBoxContainer.offsetTop;
+            e.preventDefault(); // prevent text selection
+        });
+
+        document.addEventListener('mousemove', onBoxDragMove);
+        document.addEventListener('mouseup', onBoxDragEnd);
+
+        // Prevent our UI clicks from bubbling up to the global capture handlers
+        // Let the events bubble, but ensure they don't trigger the global click listener
+        // The global click listener now checks `e.target.closest('#dtech-editable-box-container')`
+    }
+
+    function confirmForceClickArea() {
+        if (!editableBoxContainer || !editableBox) return;
+
+        var rect = editableBox.getBoundingClientRect();
+
+        var finalRect = {
+            left: rect.left + window.scrollX,
+            top: rect.top + window.scrollY,
+            width: rect.width,
+            height: rect.height
+        };
+
+        var event = {
+            type: 'force_click_area',
+            selector: 'drawn_box',
+            time: Date.now() - window.recordingStartTime,
+            url: window.location.href,
+            rect: finalRect
+        };
+
+        if (window.Android && window.Android.recordEvent) {
+            window.Android.recordEvent(JSON.stringify(event));
         }
-    }, true);
+        console.log("Recorded Force Click Area (Editable Box): ", JSON.stringify(event));
+
+        disableForceAreaSelectionMode();
+    }
+
+    function disableForceAreaSelectionMode() {
+        window.forceAreaSelectionModeActive = false;
+        if (editableBoxContainer && editableBoxContainer.parentNode) {
+            editableBoxContainer.parentNode.removeChild(editableBoxContainer);
+            editableBoxContainer = null;
+            editableBox = null;
+        }
+        document.removeEventListener('mousemove', onBoxDragMove);
+        document.removeEventListener('mouseup', onBoxDragEnd);
+    }
 
     window.enableSelectionModeStylesOnly = function() {
         if (!styleElement) {
@@ -324,39 +376,16 @@
             return;
         }
 
-        // Check if Force Area Selection mode is active (for single clicks / DOM elements)
+        // Check if Force Area Selection mode is active
         if (window.forceAreaSelectionModeActive) {
+            // Check if the click is inside our UI box. If so, let it pass through.
+            if (e.target && e.target.closest && e.target.closest('#dtech-editable-box-container')) {
+                return;
+            }
+
+            // Otherwise, it's a random click on the page while the box is active. Ignore it.
             e.preventDefault();
             e.stopPropagation();
-
-            var rect = e.target.getBoundingClientRect();
-            var extra = {
-                x: e.pageX,
-                y: e.pageY,
-                clientX: e.clientX,
-                clientY: e.clientY,
-                rect: {
-                    top: rect.top + window.scrollY,
-                    left: rect.left + window.scrollX,
-                    width: rect.width,
-                    height: rect.height
-                }
-            };
-
-            var event = {
-                type: 'force_click_area',
-                selector: getSelector(e.target),
-                time: Date.now() - window.recordingStartTime,
-                url: window.location.href,
-                rect: extra.rect
-            };
-
-            if (window.Android && window.Android.recordEvent) {
-                window.Android.recordEvent(JSON.stringify(event));
-            }
-            console.log("Recorded Force Click Area (Element): ", JSON.stringify(event));
-
-            disableForceAreaSelectionMode();
             return;
         }
 
