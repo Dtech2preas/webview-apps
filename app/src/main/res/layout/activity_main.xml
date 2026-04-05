@@ -27,17 +27,53 @@
             android:clickable="true"
             android:focusable="true"/>
 
-        <!-- Visual Status Indicator -->
-        <FrameLayout
-            android:id="@+id/visual_status_indicator"
-            android:layout_width="16dp"
-            android:layout_height="16dp"
-            android:layout_gravity="top|end"
-            android:layout_marginTop="24dp"
-            android:layout_marginEnd="24dp"
-            android:background="@drawable/circle_yellow"
+        <!-- Screen Flash Effect for Visual Recording -->
+        <ImageView
+            android:id="@+id/visual_flash_overlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#FFFFFF"
             android:visibility="gone"
-            android:elevation="10dp"/>
+            android:elevation="90dp"/>
+
+        <!-- OCR Mapped Bounding Boxes Overlay -->
+        <ImageView
+            android:id="@+id/visual_mapping_boxes"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone"
+            android:elevation="95dp"/>
+
+        <!-- Visual Recording Status Overlay -->
+        <LinearLayout
+            android:id="@+id/visual_recording_overlay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|center_horizontal"
+            android:layout_marginTop="32dp"
+            android:orientation="horizontal"
+            android:background="#DD000000"
+            android:padding="12dp"
+            android:visibility="gone"
+            android:elevation="100dp"
+            android:gravity="center_vertical">
+
+            <FrameLayout
+                android:id="@+id/visual_status_indicator"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:background="@drawable/circle_yellow" />
+
+            <TextView
+                android:id="@+id/visual_status_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:text="Waiting for page load..."
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <!-- Scanner Overlay (Keep Existing) -->
         <RelativeLayout
