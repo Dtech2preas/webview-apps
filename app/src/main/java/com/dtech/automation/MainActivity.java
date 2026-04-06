@@ -1907,10 +1907,54 @@ private void setupWebView() {
             // Find anchor on current screen
             Text.TextBlock matchedBlock = null;
             if (mappedTextBlocks != null) {
+                String targetAnchor = anchorText.trim().toLowerCase();
+                String targetAlphaNum = targetAnchor.replaceAll("[^a-z0-9]", "");
+
+                // Tier 1: Exact case-insensitive match
                 for (Text.TextBlock block : mappedTextBlocks) {
                     if (block.getText().trim().equalsIgnoreCase(anchorText.trim())) {
                         matchedBlock = block;
                         break;
+                    }
+                }
+
+                // Tier 2: Alphanumeric match
+                if (matchedBlock == null && !targetAlphaNum.isEmpty()) {
+                    for (Text.TextBlock block : mappedTextBlocks) {
+                        String blockAlphaNum = block.getText().toLowerCase().replaceAll("[^a-z0-9]", "");
+                        if (blockAlphaNum.equals(targetAlphaNum)) {
+                            matchedBlock = block;
+                            break;
+                        }
+                    }
+                }
+
+                // Tier 3: Substring match
+                if (matchedBlock == null && targetAnchor.length() >= 3) {
+                    for (Text.TextBlock block : mappedTextBlocks) {
+                        String blockText = block.getText().trim().toLowerCase();
+                        if (blockText.contains(targetAnchor) || (blockText.length() >= 4 && targetAnchor.contains(blockText))) {
+                            matchedBlock = block;
+                            break;
+                        }
+                    }
+                }
+
+                // Tier 4: Levenshtein distance match
+                if (matchedBlock == null && targetAnchor.length() >= 4) {
+                    int bestDistance = Integer.MAX_VALUE;
+                    Text.TextBlock bestBlock = null;
+                    for (Text.TextBlock block : mappedTextBlocks) {
+                        String blockText = block.getText().trim().toLowerCase();
+                        int distance = calculateLevenshteinDistance(targetAnchor, blockText);
+                        int maxAllowedDistance = Math.max(1, targetAnchor.length() / 4); // 1 typo for 4 chars, 2 for 8 chars
+                        if (distance <= maxAllowedDistance && distance < bestDistance) {
+                            bestDistance = distance;
+                            bestBlock = block;
+                        }
+                    }
+                    if (bestBlock != null) {
+                        matchedBlock = bestBlock;
                     }
                 }
             }
@@ -1965,6 +2009,23 @@ private void setupWebView() {
             e.printStackTrace();
             moveToNext(currentCredentialIndex);
         }
+    }
+
+    private int calculateLevenshteinDistance(String a, String b) {
+        int[][] dp = new int[a.length() + 1][b.length() + 1];
+        for (int i = 0; i <= a.length(); i++) dp[i][0] = i;
+        for (int j = 0; j <= b.length(); j++) dp[0][j] = j;
+
+        for (int i = 1; i <= a.length(); i++) {
+            for (int j = 1; j <= b.length(); j++) {
+                int cost = (a.charAt(i - 1) == b.charAt(j - 1)) ? 0 : 1;
+                dp[i][j] = Math.min(
+                    Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1),
+                    dp[i - 1][j - 1] + cost
+                );
+            }
+        }
+        return dp[a.length()][b.length()];
     }
 
     private void checkVerificationStatus(int targetIndex) {
@@ -2201,8 +2262,11 @@ private void setupWebView() {
         if (success) batchSuccessCount++; else batchFailureCount++;
 
         String serviceName = currentService != null ? currentService.getName() : "Unknown";
-        String extra = detail != null ? detail : "";
-        String msg = status + "|" + serviceName + "|" + cred + extra + " (powered by DTECH https://t.me/DTECHX24)";
+        String extra = (detail != null && !detail.isEmpty()) ? detail : "";
+        if (!extra.isEmpty() && !extra.startsWith(" | ")) {
+            extra = " | " + extra;
+        }
+        String msg = status + " | " + serviceName + " | " + cred + extra + " (powered by DTECH https://t.me/DTECHX24)";
 
         Log.i(TAG, "Batch Result: " + msg);
         updateTerminal(status + ": " + cred.split(":")[0]);
