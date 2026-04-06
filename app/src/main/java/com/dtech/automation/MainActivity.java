@@ -772,7 +772,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
 
         new AlertDialog.Builder(this)
                 .setTitle("Visual Recording")
-                .setMessage("1. Wait for the yellow indicator to turn green.\n2. Tap the Email field.\n3. Tap the Password field.\n4. Tap the Login button.")
+                .setMessage("1. Wait for the yellow indicator to turn green.\n2. Tap the fields and buttons in order.\n3. Click STOP RECORDING when finished.")
                 .setPositiveButton("Start", (d, w) -> {
                     // Reset session
                     currentSessionEvents.clear();
@@ -1240,25 +1240,10 @@ private void setupWebView() {
                         visualFlashOverlay.animate().alpha(0f).setDuration(200).withEndAction(() -> visualFlashOverlay.setVisibility(View.GONE)).start();
                     });
 
-                    String actionName = "";
-                    if (visualRecordingStep == 0) {
-                        actionName = "Email Field";
-                        visualRecordingStep++;
-                        runOnUiThread(() -> visualStatusText.setText("Ready: Tap Password Field"));
-                        Toast.makeText(this, actionName + " recorded. Tap Password field.", Toast.LENGTH_SHORT).show();
-                    } else if (visualRecordingStep == 1) {
-                        actionName = "Password Field";
-                        visualRecordingStep++;
-                        runOnUiThread(() -> visualStatusText.setText("Ready: Tap Login Button"));
-                        Toast.makeText(this, actionName + " recorded. Tap Login button.", Toast.LENGTH_SHORT).show();
-                    } else if (visualRecordingStep == 2) {
-                        actionName = "Login Button";
-                        visualRecordingStep++;
-                        runOnUiThread(() -> visualStatusText.setText("Done: Click STOP RECORDING"));
-                        Toast.makeText(this, actionName + " recorded. Click STOP to finish.", Toast.LENGTH_SHORT).show();
-                        // Automatically stop after login button click
-                        stopRecording();
-                    }
+                    String actionName = "Action " + (visualRecordingStep + 1);
+                    visualRecordingStep++;
+                    runOnUiThread(() -> visualStatusText.setText("Ready: Tap next field/button or click STOP"));
+                    Toast.makeText(MainActivity.this, actionName + " recorded. Tap next field/button or STOP.", Toast.LENGTH_SHORT).show();
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
@@ -1962,12 +1947,12 @@ private void setupWebView() {
                         BaseInputConnection connection = new BaseInputConnection(mWebView, true);
                         connection.commitText(textToInject, 1);
 
-                        // Small delay before next step
-                        batchHandler.postDelayed(() -> executeVisualSteps(stepIndex + 1), 800);
-                    }, 500); // Wait for focus
+                        // Increased delay before next step to allow UI updates
+                        batchHandler.postDelayed(() -> executeVisualSteps(stepIndex + 1), 2000);
+                    }, 1000); // Wait longer for focus
                 } else {
-                    // It was a click, proceed to next
-                    batchHandler.postDelayed(() -> executeVisualSteps(stepIndex + 1), 800);
+                    // It was a click, proceed to next with an increased delay
+                    batchHandler.postDelayed(() -> executeVisualSteps(stepIndex + 1), 2000);
                 }
 
             } else {
