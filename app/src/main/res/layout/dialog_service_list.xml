@@ -36,27 +36,16 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="NEW"
-            android:layout_marginEnd="4dp"/>
-
-        <Button
-            android:id="@+id/btn_update_services"
-            style="@style/CyberButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="UPDATE"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"/>
+            android:layout_marginEnd="8dp"/>
 
         <Button
             android:id="@+id/btn_import_service"
-            android:visibility="gone"
             style="@style/CyberButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="IMPORT"
-            android:layout_marginStart="4dp"/>
+            android:layout_marginStart="8dp"/>
     </LinearLayout>
 
 </LinearLayout>

@@ -3,10 +3,6 @@ package com.dtech.automation;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
-import android.content.res.AssetManager;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.BufferedReader;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -30,9 +26,8 @@ public class ServiceRepository {
         loadServices();
     }
 
-private void loadServices() {
+    private void loadServices() {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-
         String json = prefs.getString(KEY_SERVICES, "[]");
         services.clear();
         try {
@@ -71,22 +66,6 @@ private void loadServices() {
                 return;
             }
         }
-        services.add(service);
-        saveServices();
-    }
-
-    public void updateServiceRemote(ServiceData service) {
-        // Update existing by name (override), or add if not found
-        for (int i = 0; i < services.size(); i++) {
-            if (services.get(i).getName().equals(service.getName())) {
-                // Keep the same ID so selection logic doesn't break
-                service.id = services.get(i).getId();
-                services.set(i, service);
-                saveServices();
-                return;
-            }
-        }
-        // If not found by name, just add it
         services.add(service);
         saveServices();
     }
@@ -156,7 +135,6 @@ private void loadServices() {
         private String scriptJson; // Stored as string to avoid repeated parsing
         private String userAgent;
         private boolean useOcrForSuccess = false;
-        private boolean isVisual = false;
 
         // OCR Validation Fields
         private String successOcrText;
@@ -185,7 +163,6 @@ private void loadServices() {
             obj.put("scriptJson", scriptJson);
             obj.put("userAgent", userAgent);
             obj.put("useOcrForSuccess", useOcrForSuccess);
-            obj.put("isVisual", isVisual);
 
             if (successOcrText != null) {
                 obj.put("successOcrText", successOcrText);
@@ -223,7 +200,6 @@ private void loadServices() {
             if (obj.has("scriptJson")) s.scriptJson = obj.getString("scriptJson");
             if (obj.has("userAgent")) s.userAgent = obj.getString("userAgent");
             if (obj.has("useOcrForSuccess")) s.useOcrForSuccess = obj.getBoolean("useOcrForSuccess");
-            if (obj.has("isVisual")) s.isVisual = obj.getBoolean("isVisual");
 
             if (obj.has("successOcrText")) {
                 s.successOcrText = obj.getString("successOcrText");
@@ -282,9 +258,6 @@ private void loadServices() {
 
         public boolean isUseOcrForSuccess() { return useOcrForSuccess; }
         public void setUseOcrForSuccess(boolean useOcr) { this.useOcrForSuccess = useOcr; }
-
-        public boolean isVisual() { return isVisual; }
-        public void setVisual(boolean visual) { this.isVisual = visual; }
 
         public String getSuccessOcrText() { return successOcrText; }
         public void setSuccessOcrText(String text) { this.successOcrText = text; }

