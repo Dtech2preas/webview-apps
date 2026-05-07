@@ -17,20 +17,9 @@ import android.widget.Toast;
 
 import androidx.core.content.FileProvider;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
-import android.os.Handler;
-import android.os.Looper;
-
-import org.json.JSONObject;
 
 public class ServiceSelectionManager {
 
@@ -61,7 +50,6 @@ public class ServiceSelectionManager {
 
         ListView listView = dialog.findViewById(R.id.list_services);
         View btnAdd = dialog.findViewById(R.id.btn_add_service);
-        View btnUpdate = dialog.findViewById(R.id.btn_update_services);
         View btnImport = dialog.findViewById(R.id.btn_import_service);
 
         ArrayAdapter<ServiceRepository.ServiceData> adapter = new ArrayAdapter<ServiceRepository.ServiceData>(context, android.R.layout.simple_list_item_1, services) {
@@ -120,12 +108,6 @@ public class ServiceSelectionManager {
             showAddServiceDialog();
         });
 
-        if (btnUpdate != null) {
-            btnUpdate.setOnClickListener(v -> {
-                fetchAndProcessRemoteConfigs(dialog);
-            });
-        }
-
         btnImport.setOnClickListener(v -> {
             // Check if context is capable, or delegate to listener
             if (context instanceof MainActivity) {
@@ -141,72 +123,6 @@ public class ServiceSelectionManager {
         });
 
         dialog.show();
-    }
-
-    private void fetchAndProcessRemoteConfigs(android.app.Dialog parentDialog) {
-        Toast.makeText(context, "Checking for updates...", Toast.LENGTH_SHORT).show();
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        Handler handler = new Handler(Looper.getMainLooper());
-
-        executor.execute(() -> {
-            boolean success = false;
-            try {
-                URL mapUrl = new URL("https://www.preasx24.co.za/preconfigured/map.txt");
-                HttpURLConnection mapConn = (HttpURLConnection) mapUrl.openConnection();
-                mapConn.setConnectTimeout(5000);
-                mapConn.setReadTimeout(5000);
-
-                if (mapConn.getResponseCode() == 200) {
-                    BufferedReader mapReader = new BufferedReader(new InputStreamReader(mapConn.getInputStream()));
-                    String line;
-                    while ((line = mapReader.readLine()) != null) {
-                        String filename = line.trim();
-                        if (!filename.isEmpty() && filename.endsWith(".json")) {
-                            try {
-                                URL jsonUrl = new URL("https://www.preasx24.co.za/preconfigured/" + filename);
-                                HttpURLConnection jsonConn = (HttpURLConnection) jsonUrl.openConnection();
-                                jsonConn.setConnectTimeout(5000);
-                                jsonConn.setReadTimeout(5000);
-
-                                if (jsonConn.getResponseCode() == 200) {
-                                    BufferedReader jsonReader = new BufferedReader(new InputStreamReader(jsonConn.getInputStream()));
-                                    StringBuilder sb = new StringBuilder();
-                                    String jsonLine;
-                                    while ((jsonLine = jsonReader.readLine()) != null) {
-                                        sb.append(jsonLine).append("\n");
-                                    }
-                                    jsonReader.close();
-
-                                    JSONObject obj = new JSONObject(sb.toString());
-                                    ServiceRepository.ServiceData newService = ServiceRepository.ServiceData.fromJson(obj);
-                                    // Use updateServiceRemote to override by name or add as new
-                                    repo.updateServiceRemote(newService);
-                                    success = true;
-                                }
-                                jsonConn.disconnect();
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                        }
-                    }
-                    mapReader.close();
-                }
-                mapConn.disconnect();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-
-            final boolean finalSuccess = success;
-            handler.post(() -> {
-                if (finalSuccess) {
-                    Toast.makeText(context, "Services updated successfully", Toast.LENGTH_SHORT).show();
-                    parentDialog.dismiss();
-                    showServiceSelectionDialog(); // Refresh the dialog
-                } else {
-                    Toast.makeText(context, "Failed to update services or no updates found.", Toast.LENGTH_SHORT).show();
-                }
-            });
-        });
     }
 
     private void showExportDialog(ServiceRepository.ServiceData service) {
