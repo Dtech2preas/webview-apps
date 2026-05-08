@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/rounded_background"
+    android:padding="16dp"
+    android:minWidth="300dp">
+
+    <!-- Header -->
+    <TextView
+        android:id="@+id/tv_dialog_service_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="SERVICE NAME"
+        android:textColor="#00E5FF"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Stats -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:id="@+id/tv_dialog_success_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Success: 0"
+            android:textColor="#00C853"
+            android:textStyle="bold"
+            android:layout_marginEnd="16dp" />
+
+        <TextView
+            android:id="@+id/tv_dialog_fail_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Fail: 0"
+            android:textColor="#D50000"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Scrollable Log List -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_dialog_logs"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:background="#101010"
+        android:padding="4dp"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Actions -->
+    <Button
+        android:id="@+id/btn_dialog_share_success"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="SHARE SUCCESS ONLY"
+        android:backgroundTint="#00E5FF"
+        android:textColor="#000000"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/btn_dialog_clear_failed"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="CLEAR FAILED (THIS SERVICE)"
+        android:backgroundTint="#D50000"
+        android:textColor="#FFFFFF"
+        android:textSize="10sp"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/btn_dialog_clear_all_service"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="CLEAR ALL (THIS SERVICE)"
+        android:backgroundTint="#B71C1C"
+        android:textColor="#FFFFFF"
+        android:textSize="10sp"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/btn_dialog_close"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="CLOSE"
+        android:backgroundTint="#424242"
+        android:textColor="#FFFFFF" />
+
+</LinearLayout>

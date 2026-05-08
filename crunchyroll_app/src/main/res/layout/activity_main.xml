@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/main_coordinator"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/cyber_black">
+
+    <!-- Content Layer -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <WebView
+            android:id="@+id/activity_main_webview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- Stealth Overlay (Initially Gone) -->
+        <View
+            android:id="@+id/overlay_stealth"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#000000"
+            android:visibility="gone"
+            android:clickable="true"
+            android:focusable="true"/>
+
+        <!-- Scanner Overlay (Keep Existing) -->
+        <RelativeLayout
+            android:id="@+id/overlay_scanner"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#10000000"
+            android:visibility="gone">
+
+            <View
+                android:id="@+id/draggable_box"
+                android:layout_width="200dp"
+                android:layout_height="100dp"
+                android:layout_centerInParent="true"
+                android:background="@drawable/scanner_box_border" />
+
+            <!-- Scanner Controls from before (simplified for brevity, keeping IDs) -->
+             <LinearLayout
+                android:id="@+id/scanner_size_controls"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:orientation="vertical"
+                android:padding="8dp">
+                <Button android:id="@+id/btn_scan_size_inc" android:text="+" android:layout_width="50dp" android:layout_height="50dp"/>
+                <Button android:id="@+id/btn_scan_size_dec" android:text="-" android:layout_width="50dp" android:layout_height="50dp"/>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/scanner_controls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignParentBottom="true"
+                android:orientation="horizontal"
+                android:background="#CC000000"
+                android:padding="8dp"
+                android:layout_marginBottom="80dp"> <!-- Lifted up to avoid bottom sheet -->
+
+                <Button android:id="@+id/btn_scan_catch" android:text="OCR CATCH" android:textSize="10sp" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
+                <Button android:id="@+id/btn_scan_dom" android:text="DOM CATCH" android:textSize="10sp" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
+                <Button android:id="@+id/btn_scan_finish" android:text="FINISH" android:textSize="10sp" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
+                <Button android:id="@+id/btn_scan_cancel" android:text="CANCEL" android:textSize="10sp" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
+            </LinearLayout>
+        </RelativeLayout>
+
+    </FrameLayout>
+
+    <!-- Floating Overlay (Programmatically added or included here if needed) -->
+    <!-- We removed the static include as we inflate it dynamically in MainActivity,
+         or we can include it here to be cleaner -->
+    <!-- <include layout="@layout/layout_floating_overlay" /> -->
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

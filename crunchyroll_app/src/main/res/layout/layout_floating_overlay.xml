@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/overlay_root"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:clickable="true"
+    android:focusable="true">
+
+    <!-- EXPANDED STATE -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/card_expanded_menu"
+        android:layout_width="300dp"
+        android:layout_height="wrap_content"
+        app:cardBackgroundColor="@color/dtech_overlay_dim"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="8dp"
+        app:strokeColor="@color/dtech_cyan"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <!-- Drag Handle & Minimize Header -->
+            <LinearLayout
+                android:id="@+id/layout_drag_handle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingBottom="8dp">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_menu_sort_by_size"
+                    app:tint="@color/dtech_cyan" />
+
+                <TextView
+                    android:id="@+id/tv_service_name_overlay"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-condensed"
+                    android:maxLines="1"
+                    android:paddingStart="8dp"
+                    android:text="SERVICE NAME"
+                    android:textColor="@color/dtech_cyan"
+                    android:textStyle="bold" />
+
+                <ImageButton
+                    android:id="@+id/btn_minimize"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    app:tint="@color/dtech_text_secondary" />
+            </LinearLayout>
+
+            <!-- Batch Progress Bar -->
+            <ProgressBar
+                android:id="@+id/progress_batch"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:layout_marginBottom="8dp"
+                android:progressDrawable="@drawable/bg_progress_cyan"
+                android:visibility="gone" />
+
+            <!-- Control Grid -->
+            <GridLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:columnCount="2"
+                android:rowCount="3"
+                android:useDefaultMargins="true">
+
+                <!-- Row 1 removed -->
+                <!-- Row 2 -->
+                <Button
+                    android:id="@+id/btn_play_single"
+                    style="@style/DTechButton"
+                    android:layout_width="0dp"
+                    android:layout_columnWeight="1"
+                    android:layout_height="40dp"
+                    android:text="TEST RUN"
+                    android:textSize="10sp" />
+
+                <Button
+                    android:id="@+id/btn_execute_batch"
+                    style="@style/DTechButton.Accent"
+                    android:layout_width="0dp"
+                    android:layout_columnWeight="1"
+                    android:layout_height="40dp"
+                    android:text="BATCH RUN"
+                    android:textSize="10sp" />
+
+                <!-- Row 3 removed -->
+                <Button
+                    android:id="@+id/btn_session_results"
+                    style="@style/DTechButton"
+                    android:layout_width="0dp"
+                    android:layout_columnWeight="1"
+                    android:layout_height="40dp"
+                    android:text="RESULTS"
+                    android:textSize="10sp" />
+
+                <!-- Row 4 -->
+                <Button
+                    android:id="@+id/btn_credentials"
+                    style="@style/DTechButton"
+                    android:layout_width="match_parent"
+                    android:layout_columnSpan="2"
+                    android:layout_height="40dp"
+                    android:text="CREDENTIALS"
+                    android:textSize="10sp" />
+
+            </GridLayout>
+
+            <!-- Stop/Cancel Batch Buttons (Hidden by default) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btn_stop_batch"
+                    style="@style/DTechButton.Alert"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="40dp"
+                    android:text="STOP BATCH EXECUTION"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- Console Log -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recycler_console_log"
+                android:layout_width="match_parent"
+                android:layout_height="100dp"
+                android:layout_marginTop="8dp"
+                android:background="#80000000"
+                android:scrollbars="vertical" />
+
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- MINIMIZED STATE (FAB) -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_expand"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|bottom"
+        android:src="@android:drawable/ic_menu_manage"
+        app:backgroundTint="@color/dtech_cyan"
+        app:tint="@color/dtech_background_black"
+        android:visibility="gone" />
+
+</FrameLayout>
