@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_control_deck"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="SELECT SERVICE"
+        android:textColor="@color/cyber_cyan"
+        android:textStyle="bold"
+        android:textSize="18sp"
+        android:gravity="center"
+        android:layout_marginBottom="16dp"/>
+
+    <ListView
+        android:id="@+id/list_services"
+        android:layout_width="match_parent"
+        android:layout_height="300dp"
+        android:divider="@color/cyber_cyan_dim"
+        android:dividerHeight="1dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="16dp">
+
+        <Button
+            android:id="@+id/btn_add_service"
+            style="@style/CyberButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="NEW"
+            android:layout_marginEnd="8dp"/>
+
+        <Button
+            android:id="@+id/btn_import_service"
+            style="@style/CyberButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="IMPORT"
+            android:layout_marginStart="8dp"/>
+    </LinearLayout>
+
+</LinearLayout>

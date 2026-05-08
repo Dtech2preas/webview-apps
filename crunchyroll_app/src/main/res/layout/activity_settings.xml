@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/dtech_background_black"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="SETTINGS &amp; CREDENTIALS"
+        style="@style/DTechTextHeader"
+        android:layout_marginBottom="24dp"/>
+
+    <!-- Security -->
+    <com.google.android.material.card.MaterialCardView
+        style="@style/DTechCard"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SECURITY"
+                android:textColor="@color/dtech_cyan"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp"/>
+
+            <Switch
+                android:id="@+id/switch_biometric"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Biometric Lock (Startup)"
+                android:textColor="@color/dtech_text_primary"
+                android:layout_marginBottom="8dp"/>
+
+            <Switch
+                android:id="@+id/switch_evidence"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Evidence Locker (Save Screenshots)"
+                android:textColor="@color/dtech_text_primary"/>
+
+            <Switch
+                android:id="@+id/switch_keep_screen_on"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Keep Screen On Always"
+                android:textColor="@color/dtech_text_primary"
+                android:layout_marginTop="8dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Proxy Settings"
+                android:textColor="@color/dtech_cyan"
+                android:textStyle="bold"
+                android:layout_marginTop="16dp" />
+
+            <Switch
+                android:id="@+id/switch_proxy"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Enable Proxy"
+                android:textColor="@color/dtech_text_primary"/>
+
+            <EditText
+                android:id="@+id/et_proxy_host"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Proxy Host (e.g. 192.168.1.1)"
+                android:textColorHint="@color/dtech_text_secondary"
+                android:textColor="@color/dtech_text_primary"
+                android:backgroundTint="@color/dtech_cyan"/>
+
+            <EditText
+                android:id="@+id/et_proxy_port"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Proxy Port (e.g. 8080)"
+                android:inputType="number"
+                android:textColorHint="@color/dtech_text_secondary"
+                android:textColor="@color/dtech_text_primary"
+                android:backgroundTint="@color/dtech_cyan"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Force Redirect Wait Time (Seconds)"
+                android:textColor="@color/dtech_cyan"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="4dp"/>
+
+            <EditText
+                android:id="@+id/et_redirect_wait_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:text="20"
+                android:textColor="@color/dtech_text_primary"
+                android:textColorHint="@color/dtech_text_secondary"
+                android:fontFamily="monospace"
+                android:textSize="14sp"/>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Credentials -->
+    <com.google.android.material.card.MaterialCardView
+        style="@style/DTechCard"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginBottom="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="BATCH CREDENTIALS"
+                android:textColor="@color/dtech_cyan"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Format: email:password (one per line)"
+                android:textColor="@color/dtech_text_secondary"
+                android:textSize="10sp"
+                android:layout_marginBottom="8dp"/>
+
+            <Button
+                android:id="@+id/btn_import_list"
+                style="@style/DTechButton"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="IMPORT LIST (.TXT)"
+                android:textSize="10sp"
+                android:layout_gravity="end"
+                android:layout_marginBottom="4dp"/>
+
+            <EditText
+                android:id="@+id/et_credentials"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="@null"
+                android:gravity="top"
+                android:hint="user@example.com:pass123\nuser2@example.com:pass456"
+                android:textColor="@color/dtech_text_primary"
+                android:textColorHint="@color/dtech_text_secondary"
+                android:fontFamily="monospace"
+                android:textSize="12sp"/>
+
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <Button
+        android:id="@+id/btn_save"
+        style="@style/DTechButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="SAVE SETTINGS" />
+
+</LinearLayout>

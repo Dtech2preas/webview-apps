@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/dtech_background_black">
+
+    <!-- Header Section -->
+    <LinearLayout
+        android:id="@+id/layout_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:paddingTop="32dp"
+        android:paddingBottom="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="D-TECH"
+            android:textSize="36sp"
+            android:textStyle="bold"
+            android:textColor="@color/dtech_cyan"
+            android:letterSpacing="0.1" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="AUTOMATION SYSTEMS"
+            android:textSize="12sp"
+            android:textColor="@color/dtech_text_secondary"
+            android:letterSpacing="0.2" />
+
+        <!-- System Status -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_capsule_status"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp">
+
+            <View
+                android:id="@+id/view_status_pulse"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:background="@drawable/shape_circle_pulse" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SYSTEM READY"
+                android:textSize="10sp"
+                android:textColor="@color/dtech_cyan"
+                android:textStyle="bold"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+        <!-- Quota Display -->
+        <TextView
+            android:id="@+id/tv_quota"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Remaining Tests: 0"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/dtech_purple"
+            android:layout_marginTop="8dp" />
+
+    </LinearLayout>
+
+    <!-- Scrollable Content -->
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/layout_header"
+        android:layout_above="@id/tv_footer"
+        android:clipToPadding="false"
+        android:paddingBottom="24dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+
+            <!-- Quick Resume Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_quick_resume"
+                style="@style/DTechCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <ImageView
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:src="@android:drawable/ic_media_play"
+                            app:tint="@color/dtech_purple" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="RESUME SESSION"
+                            android:textColor="@color/dtech_purple"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:layout_marginStart="8dp"
+                            android:letterSpacing="0.1" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tv_last_service"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Service Name"
+                        android:textColor="@color/dtech_text_primary"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginBottom="16dp"/>
+
+                    <Button
+                        android:id="@+id/btn_quick_start"
+                        style="@style/DTechButton.Accent"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="EXECUTE NOW" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Command Center Grid -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recycler_menu"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false"
+                android:overScrollMode="never" />
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+    <!-- Footer -->
+    <TextView
+        android:id="@+id/tv_footer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Made by Preasx24"
+        android:textColor="@color/dtech_text_secondary"
+        android:textSize="10sp"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="16dp"
+        android:fontFamily="monospace"/>
+
+</RelativeLayout>

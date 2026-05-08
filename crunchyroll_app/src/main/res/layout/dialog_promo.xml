@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="300dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#222222"
+    android:padding="0dp">
+
+    <!-- Header with Logo -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="#000000"
+        android:padding="8dp"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/dtech_logo"
+            android:scaleType="centerCrop"/>
+
+        <TextView
+            android:id="@+id/tv_promo_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="D-TECH Update"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:paddingStart="12dp"
+            android:textSize="16sp"/>
+
+        <Button
+            android:id="@+id/btn_promo_close"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:text="X"
+            android:backgroundTint="#D32F2F"
+            android:textColor="#FFFFFF"
+            android:padding="0dp"
+            android:textSize="12sp"
+            android:layout_gravity="top|end"/>
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:gravity="center">
+
+        <TextView
+            android:id="@+id/tv_promo_message"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Join our Telegram channel for the latest updates!"
+            android:textColor="#DDDDDD"
+            android:gravity="center"
+            android:textSize="14sp"
+            android:layout_marginBottom="16dp"/>
+
+        <Button
+            android:id="@+id/btn_promo_action"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="JOIN NOW"
+            android:backgroundTint="#2196F3"
+            android:textColor="#FFFFFF"/>
+
+    </LinearLayout>
+
+</LinearLayout>

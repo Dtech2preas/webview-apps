@@ -41,11 +41,13 @@ jobs:
         run: |
           mkdir -p release
           cp app/build/outputs/apk/debug/app-debug.apk release/webview-app.apk
+          cp crunchyroll_app/build/outputs/apk/debug/crunchyroll_app-debug.apk release/crunchyroll-app.apk
 
       - name: Commit & push APK
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add release/webview-app.apk
+          git add release/crunchyroll-app.apk
           git commit -m "Add built APK"
           git push
