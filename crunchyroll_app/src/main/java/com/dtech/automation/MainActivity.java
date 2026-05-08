@@ -358,15 +358,15 @@ public class MainActivity extends AppCompatActivity  {
         fabExpand.setOnClickListener(v -> setOverlayMinimized(false));
 
         // Button Listeners
-        if (btnRecordStep1 != null) if (btnRecordStep1 != null) btnRecordStep1.setOnClickListener(v -> { performHapticFeedback(); startRecordingPhase1(); });
-        if (btnRecordStep2 != null) if (btnRecordStep2 != null) btnRecordStep2.setOnClickListener(v -> { performHapticFeedback(); startRecordingPhase2(); });
-        btnPlaySingle.setOnClickListener(v -> { performHapticFeedback(); startBatchReplay(); });
-        btnExecuteBatch.setOnClickListener(v -> { performHapticFeedback(); startBatchReplay(); });
-        if (btnSelectService != null) if (btnSelectService != null) btnSelectService.setOnClickListener(v -> { performHapticFeedback(); showServiceSelection(); });
-        btnSessionResults.setOnClickListener(v -> { performHapticFeedback(); showOverlayResultsDialog(); });
-        btnCredentials.setOnClickListener(v -> { performHapticFeedback(); showCredentialsDialog(); });
-        btnStopBatch.setOnClickListener(v -> { performHapticFeedback(); stopBatch(); });
-        if (btnCancelRecording != null) if (btnCancelRecording != null) btnCancelRecording.setOnClickListener(v -> { performHapticFeedback(); cancelRecording(); });
+        if (btnRecordStep1 != null) btnRecordStep1.setOnClickListener(v -> { performHapticFeedback(); startRecordingPhase1(); });
+        if (btnRecordStep2 != null) btnRecordStep2.setOnClickListener(v -> { performHapticFeedback(); startRecordingPhase2(); });
+        if (btnPlaySingle != null) btnPlaySingle.setOnClickListener(v -> { performHapticFeedback(); startBatchReplay(); });
+        if (btnExecuteBatch != null) btnExecuteBatch.setOnClickListener(v -> { performHapticFeedback(); startBatchReplay(); });
+        if (btnSelectService != null) btnSelectService.setOnClickListener(v -> { performHapticFeedback(); showServiceSelection(); });
+        if (btnSessionResults != null) btnSessionResults.setOnClickListener(v -> { performHapticFeedback(); showOverlayResultsDialog(); });
+        if (btnCredentials != null) btnCredentials.setOnClickListener(v -> { performHapticFeedback(); showCredentialsDialog(); });
+        if (btnStopBatch != null) btnStopBatch.setOnClickListener(v -> { performHapticFeedback(); stopBatch(); });
+        if (btnCancelRecording != null) btnCancelRecording.setOnClickListener(v -> { performHapticFeedback(); cancelRecording(); });
 
         updateTerminal("System Ready.");
     }
@@ -734,12 +734,14 @@ public class MainActivity extends AppCompatActivity  {
                     updateTerminal("Recording Actions...");
 
                     // Toggle Buttons
-                    btnRecordStep1.setVisibility(View.GONE);
-                    btnRecordStep2.setVisibility(View.GONE);
+                if (btnRecordStep1 != null) btnRecordStep1.setVisibility(View.GONE);
+                if (btnRecordStep2 != null) btnRecordStep2.setVisibility(View.GONE);
+                if (btnStopBatch != null) {
                     btnStopBatch.setVisibility(View.VISIBLE);
                     btnStopBatch.setText("STOP RECORDING");
                     btnStopBatch.setOnClickListener(v -> stopRecording());
-                    btnCancelRecording.setVisibility(View.VISIBLE);
+                }
+                if (btnCancelRecording != null) btnCancelRecording.setVisibility(View.VISIBLE);
 
                     android.webkit.CookieManager.getInstance().removeAllCookies(null);
                     mWebView.loadUrl(recordingStartUrl);
@@ -1027,12 +1029,14 @@ public class MainActivity extends AppCompatActivity  {
                 updateTerminal("Recording Success Phase...");
 
                 // UI State
-                btnRecordStep1.setVisibility(View.GONE);
-                btnRecordStep2.setVisibility(View.GONE);
-                btnStopBatch.setVisibility(View.VISIBLE);
-                btnStopBatch.setText("STOP RECORDING");
-                btnStopBatch.setOnClickListener(v -> stopRecording());
-                btnCancelRecording.setVisibility(View.VISIBLE);
+                if (btnRecordStep1 != null) btnRecordStep1.setVisibility(View.GONE);
+                if (btnRecordStep2 != null) btnRecordStep2.setVisibility(View.GONE);
+                if (btnStopBatch != null) {
+                    btnStopBatch.setVisibility(View.VISIBLE);
+                    btnStopBatch.setText("STOP RECORDING");
+                    btnStopBatch.setOnClickListener(v -> stopRecording());
+                }
+                if (btnCancelRecording != null) btnCancelRecording.setVisibility(View.VISIBLE);
 
                 mWebView.loadUrl(recordingStartUrl);
             })
@@ -1100,12 +1104,14 @@ public class MainActivity extends AppCompatActivity  {
     }
 
     private void resetOverlayButtons() {
-        btnRecordStep1.setVisibility(View.VISIBLE);
-        btnRecordStep2.setVisibility(View.VISIBLE);
-        btnStopBatch.setVisibility(View.GONE);
-        btnStopBatch.setText("STOP BATCH EXECUTION");
-        btnStopBatch.setOnClickListener(v -> stopBatch());
-        btnCancelRecording.setVisibility(View.GONE);
+        if (btnRecordStep1 != null) btnRecordStep1.setVisibility(View.VISIBLE);
+        if (btnRecordStep2 != null) btnRecordStep2.setVisibility(View.VISIBLE);
+        if (btnStopBatch != null) {
+            btnStopBatch.setVisibility(View.GONE);
+            btnStopBatch.setText("STOP BATCH EXECUTION");
+            btnStopBatch.setOnClickListener(v -> stopBatch());
+        }
+        if (btnCancelRecording != null) btnCancelRecording.setVisibility(View.GONE);
     }
 
     private void openScannerOverlay() {
@@ -1147,12 +1153,14 @@ public class MainActivity extends AppCompatActivity  {
                 recordingMode = RECORD_MODE_FAILURE;
                 updateTerminal("Recording Failure Phase...");
 
-                btnRecordStep1.setVisibility(View.GONE);
-                btnRecordStep2.setVisibility(View.GONE);
-                btnStopBatch.setVisibility(View.VISIBLE);
-                btnStopBatch.setText("STOP RECORDING");
-                btnStopBatch.setOnClickListener(v -> stopRecording());
-                btnCancelRecording.setVisibility(View.VISIBLE);
+                if (btnRecordStep1 != null) btnRecordStep1.setVisibility(View.GONE);
+                if (btnRecordStep2 != null) btnRecordStep2.setVisibility(View.GONE);
+                if (btnStopBatch != null) {
+                    btnStopBatch.setVisibility(View.VISIBLE);
+                    btnStopBatch.setText("STOP RECORDING");
+                    btnStopBatch.setOnClickListener(v -> stopRecording());
+                }
+                if (btnCancelRecording != null) btnCancelRecording.setVisibility(View.VISIBLE);
 
                  android.webkit.CookieManager.getInstance().removeAllCookies(null);
                  android.webkit.WebStorage.getInstance().deleteAllData();
@@ -1473,11 +1481,13 @@ public class MainActivity extends AppCompatActivity  {
         batchLogFileName = "run_" + System.currentTimeMillis() + ".txt";
 
         // Update Buttons for Batch
-        btnStopBatch.setVisibility(View.VISIBLE);
-        btnStopBatch.setOnClickListener(v -> stopBatch());
-        btnRecordStep1.setVisibility(View.GONE);
-        btnRecordStep2.setVisibility(View.GONE);
-        btnExecuteBatch.setVisibility(View.GONE);
+        if (btnStopBatch != null) {
+            btnStopBatch.setVisibility(View.VISIBLE);
+            btnStopBatch.setOnClickListener(v -> stopBatch());
+        }
+        if (btnRecordStep1 != null) btnRecordStep1.setVisibility(View.GONE);
+        if (btnRecordStep2 != null) btnRecordStep2.setVisibility(View.GONE);
+        if (btnExecuteBatch != null) btnExecuteBatch.setVisibility(View.GONE);
 
         progressBatch.setVisibility(View.VISIBLE);
         progressBatch.setMax(credentialList.size());
