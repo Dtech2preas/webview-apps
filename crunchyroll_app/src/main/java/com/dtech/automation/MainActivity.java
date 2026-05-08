@@ -734,14 +734,14 @@ public class MainActivity extends AppCompatActivity  {
                     updateTerminal("Recording Actions...");
 
                     // Toggle Buttons
-                if (btnRecordStep1 != null) btnRecordStep1.setVisibility(View.GONE);
-                if (btnRecordStep2 != null) btnRecordStep2.setVisibility(View.GONE);
-                if (btnStopBatch != null) {
-                    btnStopBatch.setVisibility(View.VISIBLE);
-                    btnStopBatch.setText("STOP RECORDING");
-                    btnStopBatch.setOnClickListener(v -> stopRecording());
-                }
-                if (btnCancelRecording != null) btnCancelRecording.setVisibility(View.VISIBLE);
+                    if (btnRecordStep1 != null) btnRecordStep1.setVisibility(View.GONE);
+                    if (btnRecordStep2 != null) btnRecordStep2.setVisibility(View.GONE);
+                    if (btnStopBatch != null) {
+                        btnStopBatch.setVisibility(View.VISIBLE);
+                        btnStopBatch.setText("STOP RECORDING");
+                        btnStopBatch.setOnClickListener(v -> stopRecording());
+                    }
+                    if (btnCancelRecording != null) btnCancelRecording.setVisibility(View.VISIBLE);
 
                     android.webkit.CookieManager.getInstance().removeAllCookies(null);
                     mWebView.loadUrl(recordingStartUrl);
@@ -1162,10 +1162,10 @@ public class MainActivity extends AppCompatActivity  {
                 }
                 if (btnCancelRecording != null) btnCancelRecording.setVisibility(View.VISIBLE);
 
-                 android.webkit.CookieManager.getInstance().removeAllCookies(null);
-                 android.webkit.WebStorage.getInstance().deleteAllData();
-                 mWebView.clearCache(true);
-                 mWebView.loadUrl(currentService.getLoginUrl());
+                android.webkit.CookieManager.getInstance().removeAllCookies(null);
+                android.webkit.WebStorage.getInstance().deleteAllData();
+                mWebView.clearCache(true);
+                mWebView.loadUrl(currentService.getLoginUrl());
             })
             .setCancelable(false)
             .show();
